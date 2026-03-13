@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background-color: black;
+  color: white;
+  font-family: 'Space Grotesk', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Moving Wavy Overlay */
+.wavy-texture {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23FF0000' fill-opacity='0.03' d='M40,-60C50,-50,60,-40,65,-25C70,-10,70,10,65,25C60,40,50,50,40,60C30,70,10,70,-10,65C-30,60,-50,50,-60,40C-70,30,-70,10,-65,-10C-60,-30,-50,-50,-40,-60C-30,-70,-10,-70,10,-65C30,-60,40,-60,40,-60Z' transform='translate(100 100)' /%3E%3C/svg%3E");
+  background-size: 1000px;
+  animation: wave-float 30s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes wave-float {
+  from { background-position: 0 0; }
+  to { background-position: 1000px 1000px; }
+}
+
+/* Glitch Typography */
+.glitch-text {
+  position: relative;
+  text-shadow: 0.05em 0 0 #ff0000, -0.05em -0.025em 0 #ffffff;
+  animation: glitch 2s infinite;
+}
+
+@keyframes glitch {
+  0% { text-shadow: 0.05em 0 0 #ff0000, -0.05em -0.025em 0 #ffffff; }
+  15% { text-shadow: -0.05em -0.025em 0 #ff0000, 0.025em 0.025em 0 #ffffff; }
+  100% { text-shadow: 0.05em 0 0 #ff0000, -0.05em -0.025em 0 #ffffff; }
+}
