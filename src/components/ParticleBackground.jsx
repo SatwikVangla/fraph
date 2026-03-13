@@ -16,19 +16,14 @@ export default function ParticleBackground() {
   if (!init) return null;
 
   return (
-    // FIX 1: Wrapper must be position:relative with explicit 100% dimensions
-    // so tsParticles has a real bounding box to render into.
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
       <Particles
         id="tsparticles"
-        // FIX 2: Inline style guarantees the canvas fills the wrapper,
-        // overriding any Tailwind reset that might zero out h-full.
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        style={{ position: "absolute", inset: 0 }}
         options={{
-          // CRITICAL: Prevents particles from jumping to the <body> tag
           fullScreen: { enable: false },
           background: { color: "transparent" },
-          fpsLimit: 120,
+          fpsLimit: 60,
           interactivity: {
             events: {
               onHover: { enable: true, mode: "grab" },
@@ -50,16 +45,13 @@ export default function ParticleBackground() {
               width: 1,
             },
             move: {
-              direction: "none",
               enable: true,
-              outModes: { default: "bounce" },
-              random: false,
               speed: 1,
-              straight: false,
+              outModes: { default: "bounce" },
             },
             number: {
               density: { enable: true },
-              value: 100,
+              value: 60,
             },
             opacity: { value: 0.5 },
             shape: { type: "circle" },

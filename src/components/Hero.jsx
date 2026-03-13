@@ -1,5 +1,5 @@
-import Spline from '@splinetool/react-spline';
-import { useState } from 'react';
+import Spline from "@splinetool/react-spline";
+import { useState } from "react";
 import ParticleBackground from "./ParticleBackground";
 
 export default function Hero() {
@@ -16,47 +16,45 @@ export default function Hero() {
       onMouseMove={handleMouseMove}
       className="relative h-screen w-full bg-black text-white flex items-center justify-center overflow-hidden"
     >
-      {/* LAYER 0: THE 3D NODES (furthest back) */}
-      {/* FIX 3: Spline needs an explicit height on its wrapper div.
-          h-full alone can resolve to 0 if the parent has no fixed height context.
-          Using the inset-0 + absolute pattern guarantees it fills the section. */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      {/* 3D BACKGROUND */}
+      <div className="absolute inset-0 z-0">
         <Spline
           scene="https://prod.spline.design/2cc82344-8f3c-4702-92a0-e9276e998ae9/scene.splinecode"
-          style={{ width: "100%", height: "100%" }}
+          style={{ width: "100%", height: "100%", pointerEvents: "none" }}
         />
       </div>
 
-      {/* LAYER 1: THE STARS (Middle Layer) */}
-      <div className="absolute inset-0 z-10 pointer-events-none opacity-40">
+      {/* PARTICLES */}
+      <div className="absolute inset-0 z-10 opacity-40">
         <ParticleBackground />
       </div>
 
-      {/* LAYER 2: WAVY TEXTURE */}
+      {/* WAVY TEXTURE */}
       <div className="wavy-texture absolute inset-0 z-20 pointer-events-none" />
 
-      {/* FIX 4: z-25 is NOT a valid Tailwind class — replaced with inline style z-index: 25 */}
+      {/* RADIAL FADE */}
       <div
         className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_transparent_0%,_black_90%)]"
         style={{ zIndex: 25 }}
       />
 
-      {/* LAYER 3: CONTENT (front) */}
+      {/* CONTENT */}
       <div className="relative z-30 text-center space-y-8 select-none">
         <h1
           className="glitch-text text-8xl md:text-[10rem] font-black tracking-tighter"
           style={{
             transform: `translate3d(${mousePos.x}px, ${mousePos.y}px, 0)`,
-            textShadow: `${-mousePos.x}px ${-mousePos.y}px 0px rgba(255, 0, 0, 0.5)`,
+            textShadow: `${-mousePos.x}px ${-mousePos.y}px 0px rgba(255,0,0,0.5)`,
           }}
         >
           FRAPH
         </h1>
 
-        <div className="space-y-4 pointer-events-auto">
+        <div className="space-y-4">
           <p className="text-lg md:text-xl font-bold tracking-[0.4em] text-red-600 uppercase">
             Fraud Recognition <span className="text-white">/</span> Graph Intelligence
           </p>
+
           <button className="btn-glow mt-8 px-12 py-4 bg-transparent border-2 border-red-600 text-white font-black uppercase tracking-widest hover:bg-red-600 transition-all duration-300">
             Analyze Network
           </button>
