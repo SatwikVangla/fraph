@@ -51,7 +51,7 @@ export default function ParticleBackground() {
             },
             number: {
               density: { enable: true },
-              value: 60,
+              value: 159,
             },
             opacity: { value: 0.5 },
             shape: { type: "circle" },
