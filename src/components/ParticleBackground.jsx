@@ -26,12 +26,12 @@ export default function ParticleBackground() {
           fpsLimit: 60,
           interactivity: {
             events: {
-              onHover: { enable: true, mode: "grab" },
+              onHover: { enable: true, mode: "connect" },
             },
             modes: {
-              grab: {
-                distance: 140,
-                links: { opacity: 0.5 },
+              connect: {
+                distance: 160,
+                links: { opacity: 0.6 },
               },
             },
           },
@@ -39,15 +39,15 @@ export default function ParticleBackground() {
             color: { value: "#ffffff" },
             links: {
               color: "#ffffff",
-              distance: 150,
+              distance: 170,
               enable: true,
-              opacity: 0.3,
+              opacity: 0.35,
               width: 1,
             },
             move: {
               enable: true,
-              speed: 1,
-              outModes: { default: "bounce" },
+              speed: 0.6,
+              /*outModes: { default: "bounce" },*/
             },
             number: {
               density: { enable: true },
