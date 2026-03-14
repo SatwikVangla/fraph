@@ -5,19 +5,25 @@ import ParticleBackground from "./ParticleBackground";
 export default function Hero() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  const handleMouseMove = (e) => {
+let frame;
+
+const handleMouseMove = (e) => {
+  cancelAnimationFrame(frame);
+
+  frame = requestAnimationFrame(() => {
     const x = (e.clientX / window.innerWidth - 0.5) * 15;
     const y = (e.clientY / window.innerHeight - 0.5) * 15;
-    setMousePos({ x, y });
-  };
 
+    setMousePos({ x, y });
+  });
+};
   return (
     <section
       onMouseMove={handleMouseMove}
       className="relative h-screen w-full bg-black text-white flex items-center justify-center overflow-hidden"
     >
       {/* 3D BACKGROUND */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         <Spline
           scene="https://prod.spline.design/2cc82344-8f3c-4702-92a0-e9276e998ae9/scene.splinecode"
           style={{ width: "100%", height: "100%", pointerEvents: "none" }}
@@ -39,7 +45,7 @@ export default function Hero() {
       />
 
       {/* CONTENT */}
-      <div className="relative z-30 text-center space-y-8 select-none">
+      <div className="relative z-[100] text-center space-y-8 select-none">
         <h1
           className="glitch-text text-8xl md:text-[10rem] font-black tracking-tighter"
           style={{

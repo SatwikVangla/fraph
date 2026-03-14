@@ -16,7 +16,7 @@ export default function ParticleBackground() {
   if (!init) return null;
 
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
+    <div style={{ position: "absolute", inset: 0,pointerEvents: "none", zIndex: 1 }}>
       <Particles
         id="fraud-network"
         style={{ position: "absolute", inset: 0 }}

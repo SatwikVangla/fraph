@@ -17,6 +17,11 @@ body {
   overflow-x: hidden;
 }
 
+canvas{
+ display: block;
+
+}
+
 /* WAVY BACKGROUND */
 
 .wavy-texture {
