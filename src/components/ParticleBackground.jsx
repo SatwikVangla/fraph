@@ -18,46 +18,84 @@ export default function ParticleBackground() {
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <Particles
-        id="tsparticles"
+        id="fraud-network"
         style={{ position: "absolute", inset: 0 }}
         options={{
           fullScreen: { enable: false },
           background: { color: "transparent" },
+
           fpsLimit: 60,
+
           interactivity: {
             events: {
-              onHover: { enable: true, mode: "connect" },
+              onHover: {
+                enable: true,
+                mode: "connect"
+              }
             },
             modes: {
               connect: {
-                distance: 160,
-                links: { opacity: 0.6 },
-              },
-            },
+                distance: 170,
+                links: {
+                  opacity: 0.6
+                }
+              }
+            }
           },
+
           particles: {
-            color: { value: "#ffffff" },
+            number: {
+              density: {
+                enable: true
+              },
+              value: 140
+            },
+
+            color: {
+              value: ["#ffffff", "#ffffff", "#ffffff", "#ff0000"]
+            },
+
+            shape: {
+              type: "circle"
+            },
+
+            size: {
+              value: { min: 1, max: 3 }
+            },
+
+            opacity: {
+              value: 0.6
+            },
+
             links: {
+              enable: true,
               color: "#ffffff",
               distance: 170,
-              enable: true,
               opacity: 0.35,
-              width: 1,
+              width: 1
             },
+
             move: {
               enable: true,
-              speed: 0.6,
-              /*outModes: { default: "bounce" },*/
+              speed: 0.5,
+              direction: "none",
+              random: false,
+              straight: false,
+              outModes: {
+                default: "bounce"
+              }
             },
-            number: {
-              density: { enable: true },
-              value: 159,
-            },
-            opacity: { value: 0.5 },
-            shape: { type: "circle" },
-            size: { value: { min: 1, max: 3 } },
+
+            twinkle: {
+              particles: {
+                enable: true,
+                frequency: 0.05,
+                opacity: 1
+              }
+            }
           },
-          detectRetina: true,
+
+          detectRetina: true
         }}
       />
     </div>
