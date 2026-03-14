@@ -1,32 +1,24 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+
 import Hero from "./components/Hero";
-import DatasetUpload from "./components/DatasetUpload";
-import FraudGraph from "./components/FraudGraph";
+import UploadPage from "./pages/UploadPage";
+import DashboardPage from "./pages/DashboardPage";
 
 export default function App() {
-return ( <div className="bg-black text-white min-h-screen">
+return ( <Router>
 
 
-  {/* HERO SECTION */}
-  <Hero />
+  <Routes>
 
-  {/* GRAPH LAB SECTION */}
-  <section className="px-10 py-20">
+    <Route path="/" element={<Hero />} />
 
-    <h2 className="text-4xl font-bold text-center mb-12">
-      FRAPH Graph Lab
-    </h2>
+    <Route path="/upload" element={<UploadPage />} />
 
-    {/* DATASET UPLOAD */}
-    <DatasetUpload />
+    <Route path="/dashboard" element={<DashboardPage />} />
 
-    {/* FRAUD GRAPH */}
-    <div className="mt-16">
-      <FraudGraph />
-    </div>
+  </Routes>
 
-  </section>
-
-</div>
+</Router>
 
 
 );
