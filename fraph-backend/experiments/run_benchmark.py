@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import warnings
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,6 +11,7 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/fraph-matplotlib")
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from sklearn.exceptions import UndefinedMetricWarning
 from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
@@ -18,12 +20,18 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import RepeatedStratifiedKFold
 
-from app.services.gnn_model import build_transaction_graph_from_prepared, train_gnn_from_graph
+from app.services.gnn_model import tune_and_train_gnn_from_prepared
 from app.services.ml_models import (
     evaluate_model,
     get_model_probabilities,
     get_model_specs,
     prepare_labeled_dataset,
+)
+
+warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
+warnings.filterwarnings(
+    "ignore",
+    message="A single label was found in 'y_true' and 'y_pred'.*",
 )
 
 DEFAULT_MODELS = [
@@ -49,10 +57,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--folds", type=int, default=5, help="Number of CV folds.")
     parser.add_argument("--repeats", type=int, default=3, help="Number of repeated CV rounds.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
-    parser.add_argument("--gnn-epochs", type=int, default=80)
-    parser.add_argument("--gnn-hidden-dim", type=int, default=64)
-    parser.add_argument("--gnn-learning-rate", type=float, default=0.005)
-    parser.add_argument("--gnn-dropout", type=float, default=0.15)
+    parser.add_argument("--gnn-epochs", type=int, default=120)
+    parser.add_argument("--gnn-hidden-dim", type=int, default=96)
+    parser.add_argument("--gnn-learning-rate", type=float, default=0.003)
+    parser.add_argument("--gnn-dropout", type=float, default=0.1)
     parser.add_argument("--gnn-use-similarity-edges", action="store_true", default=True)
     parser.add_argument("--gnn-disable-similarity-edges", action="store_false", dest="gnn_use_similarity_edges")
     parser.add_argument("--gnn-use-party-edges", action="store_true", default=True)
@@ -103,17 +111,11 @@ def evaluate_gnn_model(
     use_party_edges: bool,
     use_class_weights: bool,
 ) -> tuple[dict[str, object], list[float], list[int], list[int]]:
-    graph = build_transaction_graph_from_prepared(
+    result = tune_and_train_gnn_from_prepared(
         prepared=prepared,
+        dataset_name=dataset_name,
         train_indices=train_indices,
         test_indices=test_indices,
-        random_state=42,
-        use_similarity_edges=use_similarity_edges,
-        use_party_edges=use_party_edges,
-    )
-    result = train_gnn_from_graph(
-        graph=graph,
-        dataset_name=dataset_name,
         epochs=epochs,
         hidden_dim=hidden_dim,
         learning_rate=learning_rate,
@@ -216,10 +218,10 @@ def run_benchmark(
     folds: int = 5,
     repeats: int = 3,
     seed: int = 42,
-    gnn_epochs: int = 80,
-    gnn_hidden_dim: int = 64,
-    gnn_learning_rate: float = 0.005,
-    gnn_dropout: float = 0.15,
+    gnn_epochs: int = 120,
+    gnn_hidden_dim: int = 96,
+    gnn_learning_rate: float = 0.003,
+    gnn_dropout: float = 0.1,
     gnn_use_similarity_edges: bool = True,
     gnn_use_party_edges: bool = True,
     gnn_use_class_weights: bool = True,

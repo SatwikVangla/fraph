@@ -20,9 +20,9 @@ class TrainingRequest(BaseModel):
     dataset_id: int | None = None
     dataset_name: str | None = None
     model_names: list[str] = Field(default_factory=list)
-    epochs: int = Field(default=80, ge=5, le=500)
-    learning_rate: float = Field(default=0.005, gt=0.0, le=1.0)
-    hidden_dim: int = Field(default=64, ge=4, le=512)
+    epochs: int = Field(default=120, ge=5, le=500)
+    learning_rate: float = Field(default=0.003, gt=0.0, le=1.0)
+    hidden_dim: int = Field(default=96, ge=4, le=512)
 
 
 class DatasetResponse(BaseModel):

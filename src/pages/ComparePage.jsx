@@ -128,9 +128,9 @@ export default function ComparePage() {
             "random_forest",
             "gnn",
           ],
-          epochs: 80,
-          hidden_dim: 64,
-          learning_rate: 0.005,
+          epochs: 120,
+          hidden_dim: 96,
+          learning_rate: 0.003,
         }),
       });
 
@@ -255,36 +255,40 @@ export default function ComparePage() {
 
         {!loading && !error && comparison ? (
           <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
-            <div className="grid grid-cols-6 gap-4 border-b border-neutral-800 px-6 py-4 text-xs font-bold uppercase tracking-[0.25em] text-neutral-500">
-              <span>Model</span>
-              <span>Accuracy</span>
-              <span>Precision</span>
-              <span>Recall</span>
-              <span>F1</span>
-              <span>ROC AUC</span>
-            </div>
-
-            {comparison.model_results.map((result) => (
-              <div
-                key={result.model_name}
-                className="grid grid-cols-6 gap-4 border-b border-neutral-900 px-6 py-5 text-sm text-neutral-200 last:border-b-0"
-              >
-                <div>
-                  <p className="font-semibold">
-                    {MODEL_LABELS[result.model_name] ?? result.model_name}
-                  </p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
-                    {result.status}
-                  </p>
-                  <p className="mt-2 text-xs text-neutral-500">{result.details}</p>
+            <div className="overflow-x-auto">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-6 gap-4 border-b border-neutral-800 px-6 py-4 text-xs font-bold uppercase tracking-[0.25em] text-neutral-500">
+                  <span>Model</span>
+                  <span>Accuracy</span>
+                  <span>Precision</span>
+                  <span>Recall</span>
+                  <span>F1</span>
+                  <span>ROC AUC</span>
                 </div>
-                <MetricCell value={result.accuracy} />
-                <MetricCell value={result.precision} />
-                <MetricCell value={result.recall} />
-                <MetricCell value={result.f1_score} />
-                <MetricCell value={result.roc_auc} />
+
+                {comparison.model_results.map((result) => (
+                  <div
+                    key={result.model_name}
+                    className="grid grid-cols-6 gap-4 border-b border-neutral-900 px-6 py-5 text-sm text-neutral-200 last:border-b-0"
+                  >
+                    <div>
+                      <p className="font-semibold">
+                        {MODEL_LABELS[result.model_name] ?? result.model_name}
+                      </p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                        {result.status}
+                      </p>
+                      <p className="mt-2 text-xs text-neutral-500">{result.details}</p>
+                    </div>
+                    <MetricCell value={result.accuracy} />
+                    <MetricCell value={result.precision} />
+                    <MetricCell value={result.recall} />
+                    <MetricCell value={result.f1_score} />
+                    <MetricCell value={result.roc_auc} />
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         ) : null}
 
@@ -293,32 +297,36 @@ export default function ComparePage() {
             <div className="border-b border-neutral-800 px-6 py-5">
               <h2 className="text-2xl font-bold">Persisted Training Runs</h2>
             </div>
-            {trainingResults.map((result) => (
-              <div
-                key={`artifact-${result.model_name}-${result.artifact_path ?? result.status}`}
-                className="border-b border-neutral-900 px-6 py-5 text-sm text-neutral-200 last:border-b-0"
-              >
-                <div className="grid gap-4 md:grid-cols-[1.4fr_repeat(5,minmax(0,1fr))]">
-                  <div>
-                    <p className="font-semibold">
-                      {MODEL_LABELS[result.model_name] ?? result.model_name}
-                    </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
-                      {result.status}
-                    </p>
-                    <p className="mt-2 text-xs text-neutral-500">{result.details}</p>
-                    <p className="mt-2 break-all text-xs text-red-400">
-                      {result.artifact_path ?? "No artifact saved"}
-                    </p>
+            <div className="overflow-x-auto">
+              <div className="min-w-[860px]">
+                {trainingResults.map((result) => (
+                  <div
+                    key={`artifact-${result.model_name}-${result.artifact_path ?? result.status}`}
+                    className="border-b border-neutral-900 px-6 py-5 text-sm text-neutral-200 last:border-b-0"
+                  >
+                    <div className="grid gap-4 md:grid-cols-[1.4fr_repeat(5,minmax(0,1fr))]">
+                      <div>
+                        <p className="font-semibold">
+                          {MODEL_LABELS[result.model_name] ?? result.model_name}
+                        </p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                          {result.status}
+                        </p>
+                        <p className="mt-2 text-xs text-neutral-500">{result.details}</p>
+                        <p className="mt-2 break-all text-xs text-red-400">
+                          {result.artifact_path ?? "No artifact saved"}
+                        </p>
+                      </div>
+                      <MetricCell value={result.accuracy} />
+                      <MetricCell value={result.precision} />
+                      <MetricCell value={result.recall} />
+                      <MetricCell value={result.f1_score} />
+                      <MetricCell value={result.roc_auc} />
+                    </div>
                   </div>
-                  <MetricCell value={result.accuracy} />
-                  <MetricCell value={result.precision} />
-                  <MetricCell value={result.recall} />
-                  <MetricCell value={result.f1_score} />
-                  <MetricCell value={result.roc_auc} />
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         ) : null}
       </div>

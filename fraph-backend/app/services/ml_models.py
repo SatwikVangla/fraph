@@ -12,17 +12,16 @@ from sklearn.svm import LinearSVC
 from app.services.evaluation import compute_binary_classification_metrics
 from app.services.fraud_detection import get_numeric_feature_frame
 from app.services.gnn_model import (
-    build_transaction_graph_from_prepared,
-    train_gnn_from_graph,
+    tune_and_train_gnn_from_prepared,
 )
 from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
-    "epochs": 20,
-    "hidden_dim": 64,
-    "learning_rate": 0.005,
-    "dropout": 0.15,
+    "epochs": 120,
+    "hidden_dim": 96,
+    "learning_rate": 0.003,
+    "dropout": 0.1,
     "use_similarity_edges": True,
     "use_party_edges": True,
     "use_class_weights": True,
@@ -155,26 +154,23 @@ def compare_baseline_models(
 
     if include_gnn_result:
         try:
-            graph = build_transaction_graph_from_prepared(
+            gnn_result = tune_and_train_gnn_from_prepared(
                 prepared=labeled,
+                dataset_name=dataset_name or "comparison",
                 train_indices=list(train_indices),
                 test_indices=list(test_indices),
-                use_similarity_edges=GNN_COMPARE_CONFIG["use_similarity_edges"],
-                use_party_edges=GNN_COMPARE_CONFIG["use_party_edges"],
-            )
-            gnn_result = train_gnn_from_graph(
-                graph=graph,
-                dataset_name=dataset_name or "comparison",
                 epochs=GNN_COMPARE_CONFIG["epochs"],
                 hidden_dim=GNN_COMPARE_CONFIG["hidden_dim"],
                 learning_rate=GNN_COMPARE_CONFIG["learning_rate"],
                 artifact_name="gnn",
                 persist_artifact=False,
+                include_raw_outputs=False,
                 use_class_weights=GNN_COMPARE_CONFIG["use_class_weights"],
                 dropout=GNN_COMPARE_CONFIG["dropout"],
             )
             gnn_result["details"] = (
-                "GNN evaluated on a transaction graph built from the selected dataset."
+                "GNN evaluated on an automatically tuned transaction-account graph "
+                "built from the selected dataset."
             )
             results.append(gnn_result)
         except ValueError as exc:
