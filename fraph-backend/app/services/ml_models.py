@@ -19,10 +19,10 @@ from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
-    "epochs": 5,
-    "hidden_dim": 32,
-    "learning_rate": 0.01,
-    "dropout": 0.2,
+    "epochs": 20,
+    "hidden_dim": 64,
+    "learning_rate": 0.005,
+    "dropout": 0.15,
     "use_similarity_edges": True,
     "use_party_edges": True,
     "use_class_weights": True,

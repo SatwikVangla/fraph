@@ -128,9 +128,9 @@ export default function ComparePage() {
             "random_forest",
             "gnn",
           ],
-          epochs: 50,
-          hidden_dim: 32,
-          learning_rate: 0.01,
+          epochs: 80,
+          hidden_dim: 64,
+          learning_rate: 0.005,
         }),
       });
 

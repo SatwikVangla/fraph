@@ -17,6 +17,7 @@ class GraphData:
     labels: torch.Tensor
     adjacency: torch.Tensor
     train_mask: torch.Tensor
+    val_mask: torch.Tensor
     test_mask: torch.Tensor
 
 
@@ -34,9 +35,16 @@ class TransactionGCN(nn.Module):
         super().__init__()
         self.conv1 = GraphConvolution(input_dim, hidden_dim)
         self.conv2 = GraphConvolution(hidden_dim, hidden_dim)
-        self.conv3 = GraphConvolution(hidden_dim, 2)
+        self.conv3 = GraphConvolution(hidden_dim, hidden_dim)
         self.norm1 = nn.BatchNorm1d(hidden_dim)
         self.norm2 = nn.BatchNorm1d(hidden_dim)
+        self.feature_skip = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.classifier = nn.Linear(hidden_dim, 2)
         self.dropout = dropout
 
     def forward(self, inputs: torch.Tensor, adjacency: torch.Tensor) -> torch.Tensor:
@@ -48,7 +56,10 @@ class TransactionGCN(nn.Module):
         hidden = self.norm2(hidden)
         hidden = F.relu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
-        return self.conv3(hidden, adjacency)
+        hidden = self.conv3(hidden, adjacency)
+        hidden = F.relu(hidden + self.feature_skip(inputs))
+        hidden = F.dropout(hidden, p=self.dropout, training=self.training)
+        return self.classifier(hidden)
 
 
 def build_transaction_graph_from_prepared(
@@ -172,6 +183,7 @@ def build_transaction_graph_from_prepared(
     normalized_adjacency = degree_matrix @ adjacency @ degree_matrix
 
     train_mask = torch.zeros(node_count, dtype=torch.bool)
+    val_mask = torch.zeros(node_count, dtype=torch.bool)
     test_mask = torch.zeros(node_count, dtype=torch.bool)
     if train_indices is not None and test_indices is not None:
         original_to_current = {
@@ -192,18 +204,48 @@ def build_transaction_graph_from_prepared(
             raise ValueError(
                 "GNN graph sampling removed an entire fold split. Reduce folds or increase max_nodes."
             )
-        train_mask[mapped_train_indices] = True
+        fraud_train = [
+            index for index in mapped_train_indices if int(label_tensor[index].item()) == 1
+        ]
+        legit_train = [
+            index for index in mapped_train_indices if int(label_tensor[index].item()) == 0
+        ]
+        val_indices: list[int] = []
+        if len(fraud_train) >= 2 and len(legit_train) >= 2:
+            fraud_val_count = max(1, int(round(len(fraud_train) * 0.2)))
+            legit_val_count = max(1, int(round(len(legit_train) * 0.2)))
+            val_indices.extend(sorted(fraud_train)[:fraud_val_count])
+            val_indices.extend(sorted(legit_train)[:legit_val_count])
+        else:
+            validation_size = max(1, int(round(len(mapped_train_indices) * 0.15)))
+            val_indices.extend(sorted(mapped_train_indices)[:validation_size])
+
+        train_only_indices = [
+            index for index in mapped_train_indices if index not in set(val_indices)
+        ]
+        if not train_only_indices:
+            train_only_indices = mapped_train_indices[:-1]
+            val_indices = mapped_train_indices[-1:]
+
+        train_mask[train_only_indices] = True
+        val_mask[val_indices] = True
         test_mask[mapped_test_indices] = True
     else:
         generator = torch.Generator().manual_seed(random_state)
         indices = torch.randperm(node_count, generator=generator)
-        train_cutoff = max(int(node_count * 0.8), 1)
+        train_cutoff = max(int(node_count * 0.7), 1)
+        val_cutoff = max(int(node_count * 0.85), train_cutoff + 1)
         shuffled_train_indices = indices[:train_cutoff]
-        shuffled_test_indices = indices[train_cutoff:]
-        if len(shuffled_test_indices) == 0:
-            shuffled_test_indices = shuffled_train_indices[-1:].clone()
+        shuffled_val_indices = indices[train_cutoff:val_cutoff]
+        shuffled_test_indices = indices[val_cutoff:]
+        if len(shuffled_val_indices) == 0:
+            shuffled_val_indices = shuffled_train_indices[-1:].clone()
             shuffled_train_indices = shuffled_train_indices[:-1]
+        if len(shuffled_test_indices) == 0:
+            shuffled_test_indices = shuffled_val_indices[-1:].clone()
+            shuffled_val_indices = shuffled_val_indices[:-1]
         train_mask[shuffled_train_indices] = True
+        val_mask[shuffled_val_indices] = True
         test_mask[shuffled_test_indices] = True
 
     return GraphData(
@@ -211,6 +253,7 @@ def build_transaction_graph_from_prepared(
         labels=label_tensor,
         adjacency=normalized_adjacency,
         train_mask=train_mask,
+        val_mask=val_mask,
         test_mask=test_mask,
     )
 
@@ -245,6 +288,7 @@ def train_gnn_from_graph(
     use_class_weights: bool = True,
     dropout: float = 0.2,
 ) -> dict[str, object]:
+    torch.manual_seed(42)
     model = TransactionGCN(graph.features.shape[1], hidden_dim, dropout=dropout)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=5e-4)
     train_labels = graph.labels[graph.train_mask]
@@ -259,6 +303,10 @@ def train_gnn_from_graph(
     else:
         criterion = nn.CrossEntropyLoss()
 
+    best_state = None
+    best_threshold = 0.5
+    best_score = float("-inf")
+
     for _epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
@@ -267,10 +315,39 @@ def train_gnn_from_graph(
         loss.backward()
         optimizer.step()
 
+        if bool(graph.val_mask.any().item()):
+            model.eval()
+            with torch.no_grad():
+                val_logits = model(graph.features, graph.adjacency)
+                val_probabilities = torch.softmax(val_logits[graph.val_mask], dim=1)[:, 1]
+                val_y_true = graph.labels[graph.val_mask]
+                thresholds = torch.linspace(0.2, 0.8, steps=13)
+                for threshold in thresholds:
+                    val_predictions = (val_probabilities >= float(threshold)).long()
+                    metrics = compute_binary_classification_metrics(
+                        y_true=val_y_true.detach().cpu().numpy(),
+                        probabilities=val_probabilities.detach().cpu().numpy(),
+                        predictions=val_predictions.detach().cpu().numpy(),
+                    )
+                    score = (
+                        float(metrics["f1_score"]) * 0.7
+                        + float(metrics["pr_auc"]) * 0.2
+                        + float(metrics["recall"]) * 0.1
+                    )
+                    if score > best_score:
+                        best_score = score
+                        best_threshold = float(threshold)
+                        best_state = {
+                            key: value.detach().cpu().clone()
+                            for key, value in model.state_dict().items()
+                        }
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
     model.eval()
     logits = model(graph.features, graph.adjacency)
     probabilities = torch.softmax(logits[graph.test_mask], dim=1)[:, 1]
-    predictions = torch.argmax(logits[graph.test_mask], dim=1)
+    predictions = (probabilities >= best_threshold).long()
     y_true = graph.labels[graph.test_mask]
     probabilities_np = probabilities.detach().cpu().numpy()
     predictions_np = predictions.detach().cpu().numpy()
@@ -299,6 +376,7 @@ def train_gnn_from_graph(
         "artifact_path": str(artifact_path) if artifact_path else None,
         **metrics,
         "details": "Transaction graph GCN trained and persisted successfully.",
+        "threshold": round(best_threshold, 4),
     }
     if include_raw_outputs:
         result["raw_outputs"] = {

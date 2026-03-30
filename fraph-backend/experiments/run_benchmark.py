@@ -49,10 +49,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--folds", type=int, default=5, help="Number of CV folds.")
     parser.add_argument("--repeats", type=int, default=3, help="Number of repeated CV rounds.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
-    parser.add_argument("--gnn-epochs", type=int, default=20)
-    parser.add_argument("--gnn-hidden-dim", type=int, default=32)
-    parser.add_argument("--gnn-learning-rate", type=float, default=0.01)
-    parser.add_argument("--gnn-dropout", type=float, default=0.2)
+    parser.add_argument("--gnn-epochs", type=int, default=80)
+    parser.add_argument("--gnn-hidden-dim", type=int, default=64)
+    parser.add_argument("--gnn-learning-rate", type=float, default=0.005)
+    parser.add_argument("--gnn-dropout", type=float, default=0.15)
     parser.add_argument("--gnn-use-similarity-edges", action="store_true", default=True)
     parser.add_argument("--gnn-disable-similarity-edges", action="store_false", dest="gnn_use_similarity_edges")
     parser.add_argument("--gnn-use-party-edges", action="store_true", default=True)
@@ -216,10 +216,10 @@ def run_benchmark(
     folds: int = 5,
     repeats: int = 3,
     seed: int = 42,
-    gnn_epochs: int = 20,
-    gnn_hidden_dim: int = 32,
-    gnn_learning_rate: float = 0.01,
-    gnn_dropout: float = 0.2,
+    gnn_epochs: int = 80,
+    gnn_hidden_dim: int = 64,
+    gnn_learning_rate: float = 0.005,
+    gnn_dropout: float = 0.15,
     gnn_use_similarity_edges: bool = True,
     gnn_use_party_edges: bool = True,
     gnn_use_class_weights: bool = True,
