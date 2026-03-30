@@ -886,6 +886,62 @@ def tune_and_train_gnn_from_prepared(
     return final_result
 
 
+def quick_train_gnn_from_prepared(
+    prepared: pd.DataFrame,
+    dataset_name: str,
+    train_indices: list[int] | None = None,
+    test_indices: list[int] | None = None,
+    epochs: int = 24,
+    learning_rate: float = 0.0035,
+    hidden_dim: int = 64,
+    artifact_name: str = "gnn",
+    persist_artifact: bool = False,
+    include_raw_outputs: bool = False,
+    use_class_weights: bool = True,
+    dropout: float = 0.15,
+    use_similarity_edges: bool = False,
+    use_party_edges: bool = True,
+    include_account_nodes: bool = True,
+    max_nodes: int = 2048,
+) -> dict[str, object]:
+    graph = build_transaction_graph_from_prepared(
+        prepared=prepared,
+        train_indices=train_indices,
+        test_indices=test_indices,
+        max_nodes=max_nodes,
+        use_similarity_edges=use_similarity_edges,
+        use_party_edges=use_party_edges,
+        include_account_nodes=include_account_nodes,
+    )
+    result = train_gnn_from_graph(
+        graph=graph,
+        dataset_name=dataset_name,
+        epochs=epochs,
+        learning_rate=learning_rate,
+        hidden_dim=hidden_dim,
+        artifact_name=artifact_name,
+        persist_artifact=persist_artifact,
+        include_raw_outputs=include_raw_outputs,
+        use_class_weights=use_class_weights,
+        dropout=dropout,
+    )
+    result["details"] = (
+        "Quick GraphSAGE evaluation on a transaction-account graph for interactive comparison."
+    )
+    result["selected_config"] = {
+        "epochs": epochs,
+        "hidden_dim": hidden_dim,
+        "learning_rate": learning_rate,
+        "dropout": dropout,
+        "use_similarity_edges": use_similarity_edges,
+        "use_party_edges": use_party_edges,
+        "include_account_nodes": include_account_nodes,
+        "max_nodes": max_nodes,
+        "mode": "quick_compare",
+    }
+    return result
+
+
 def train_gnn_model(
     dataset_path: str,
     dataset_name: str,

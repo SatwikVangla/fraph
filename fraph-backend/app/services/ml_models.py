@@ -12,19 +12,22 @@ from sklearn.svm import LinearSVC
 from app.services.evaluation import compute_binary_classification_metrics
 from app.services.fraud_detection import get_numeric_feature_frame
 from app.services.gnn_model import (
+    quick_train_gnn_from_prepared,
     tune_and_train_gnn_from_prepared,
 )
 from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
-    "epochs": 120,
-    "hidden_dim": 96,
-    "learning_rate": 0.003,
-    "dropout": 0.1,
-    "use_similarity_edges": True,
+    "epochs": 12,
+    "hidden_dim": 48,
+    "learning_rate": 0.004,
+    "dropout": 0.2,
+    "use_similarity_edges": False,
     "use_party_edges": True,
     "use_class_weights": True,
+    "include_account_nodes": True,
+    "max_nodes": 2048,
 }
 
 
@@ -154,7 +157,7 @@ def compare_baseline_models(
 
     if include_gnn_result:
         try:
-            gnn_result = tune_and_train_gnn_from_prepared(
+            gnn_result = quick_train_gnn_from_prepared(
                 prepared=labeled,
                 dataset_name=dataset_name or "comparison",
                 train_indices=list(train_indices),
@@ -167,10 +170,10 @@ def compare_baseline_models(
                 include_raw_outputs=False,
                 use_class_weights=GNN_COMPARE_CONFIG["use_class_weights"],
                 dropout=GNN_COMPARE_CONFIG["dropout"],
-            )
-            gnn_result["details"] = (
-                "GNN evaluated on an automatically tuned transaction-account graph "
-                "built from the selected dataset."
+                use_similarity_edges=GNN_COMPARE_CONFIG["use_similarity_edges"],
+                use_party_edges=GNN_COMPARE_CONFIG["use_party_edges"],
+                include_account_nodes=GNN_COMPARE_CONFIG["include_account_nodes"],
+                max_nodes=GNN_COMPARE_CONFIG["max_nodes"],
             )
             results.append(gnn_result)
         except ValueError as exc:
