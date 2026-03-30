@@ -496,6 +496,16 @@ If you want publishable results, use this sequence:
 4. Add a second dataset if possible, especially a more graph-native one.
 5. Include mean ± std across repeated folds in the paper.
 
+## Paper Draft Assets
+
+Paper-oriented draft text and comparison assets are available under [`docs/paper`](/home/satwik/fraph/docs/paper). That folder includes:
+
+- a draft abstract
+- a draft methodology section
+- a draft results section
+- a final comparison table based on a unified benchmark run
+- a figure checklist for assembling the paper
+
 ## Practical Advice For Your Paper
 
 - Do not claim superiority from a single split.
