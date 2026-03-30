@@ -1,12 +1,21 @@
 import Spline from "@splinetool/react-spline";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ParticleBackground from "./ParticleBackground";
 
 export default function Hero() {
 	const navigate = useNavigate();
-
+	const [showSpline, setShowSpline] = useState(false);
 	const titleRef = useRef(null);
+
+	useEffect(() => {
+		const frameId = window.requestAnimationFrame(() => {
+			setShowSpline(true);
+		});
+		return () => {
+			window.cancelAnimationFrame(frameId);
+		};
+	}, []);
 
 	const handleMouseMove = (e) => {
 
@@ -26,19 +35,21 @@ export default function Hero() {
 	return (
 		<section
 		onMouseMove={handleMouseMove}
-		className="relative h-screen w-full bg-black text-white flex items-center justify-center overflow-hidden"
+		className="relative isolate flex h-screen w-full items-center justify-center overflow-hidden bg-black text-white"
 		>
 
 		{/* SPLINE BACKGROUND */}
 		<div className="absolute inset-0 z-0 pointer-events-none">
-		<Spline
-		scene="https://prod.spline.design/2cc82344-8f3c-4702-92a0-e9276e998ae9/scene.splinecode"
-		style={{
-			width: "100%",
-				height: "100%",
-				pointerEvents: "none"
-		}}
-		/>
+		{showSpline ? (
+			<Spline
+			scene="https://prod.spline.design/2cc82344-8f3c-4702-92a0-e9276e998ae9/scene.splinecode"
+			style={{
+				width: "100%",
+					height: "100%",
+					pointerEvents: "none"
+			}}
+			/>
+		) : null}
 		</div>
 
 		{/* PARTICLE NETWORK */}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import ParticleBackground from "../components/ParticleBackground";
 import { apiRequest } from "../utils/api";
 
 const MODEL_LABELS = {
@@ -12,24 +13,39 @@ const MODEL_LABELS = {
 };
 
 export default function ComparePage() {
+  const navigate = useNavigate();
   const location = useLocation();
   const { datasetId } = useParams();
   const [comparison, setComparison] = useState(null);
+  const [datasets, setDatasets] = useState([]);
   const [trainingResults, setTrainingResults] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
+  const selectedDatasetId = datasetId ? Number(datasetId) : null;
 
   useEffect(() => {
     let active = true;
+
+    async function loadDatasets() {
+      try {
+        const response = await apiRequest("/upload/datasets");
+        if (!active) {
+          return;
+        }
+        setDatasets(response);
+      } catch {
+        // Keep the page usable even if the selector cannot load.
+      }
+    }
 
     async function loadComparison() {
       try {
         setLoading(true);
         setError("");
 
-        const payload = datasetId
-          ? { dataset_id: Number(datasetId) }
+        const payload = selectedDatasetId
+          ? { dataset_id: selectedDatasetId }
           : { dataset_name: location.state?.dataset?.name };
 
         const response = await apiRequest("/compare/", {
@@ -68,11 +84,11 @@ export default function ComparePage() {
     }
 
     async function loadArtifacts() {
-      if (!datasetId) {
+      if (!selectedDatasetId) {
         return;
       }
       try {
-        const artifacts = await apiRequest(`/train/artifacts/${datasetId}`);
+        const artifacts = await apiRequest(`/train/artifacts/${selectedDatasetId}`);
         if (active) {
           setTrainingResults(artifacts);
         }
@@ -81,20 +97,21 @@ export default function ComparePage() {
       }
     }
 
+    loadDatasets();
     loadComparison();
     loadArtifacts();
     return () => {
       active = false;
     };
-  }, [datasetId, location.state?.dataset?.name]);
+  }, [selectedDatasetId, location.state?.dataset?.name]);
 
   async function handleTraining() {
     try {
       setTraining(true);
       setError("");
 
-      const payload = datasetId
-        ? { dataset_id: Number(datasetId) }
+      const payload = selectedDatasetId
+        ? { dataset_id: selectedDatasetId }
         : { dataset_name: location.state?.dataset?.name };
 
       const response = await apiRequest("/train/", {
@@ -147,8 +164,20 @@ export default function ComparePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black px-6 py-10 text-white md:px-12">
-      <div className="mx-auto max-w-6xl">
+    <div className="relative min-h-screen overflow-hidden bg-black px-6 py-10 text-white md:px-12">
+      <div className="absolute inset-0 z-0 opacity-30">
+        <ParticleBackground />
+      </div>
+      <div className="wavy-texture absolute inset-0 z-10 pointer-events-none" />
+      <div
+        className="absolute inset-0 z-20 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle at center, transparent 0%, black 88%)",
+        }}
+      />
+
+      <div className="relative z-30 mx-auto max-w-6xl">
         <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="mb-3 text-sm uppercase tracking-[0.35em] text-red-500">
@@ -160,6 +189,37 @@ export default function ComparePage() {
             <p className="mt-3 text-neutral-400">
               Dataset: {comparison?.dataset?.name ?? location.state?.dataset?.name ?? "--"}
             </p>
+            {datasets.length ? (
+              <div className="mt-5 max-w-sm">
+                <label
+                  htmlFor="compare-dataset"
+                  className="mb-2 block text-xs font-bold uppercase tracking-[0.25em] text-neutral-500"
+                >
+                  Compare Uploaded Dataset
+                </label>
+                <select
+                  id="compare-dataset"
+                  value={selectedDatasetId ?? ""}
+                  onChange={(event) => {
+                    const nextDataset = datasets.find(
+                      (item) => item.id === Number(event.target.value),
+                    );
+                    if (nextDataset) {
+                      navigate(`/compare/${nextDataset.id}`, {
+                        state: { dataset: nextDataset },
+                      });
+                    }
+                  }}
+                  className="w-full border border-neutral-700 bg-neutral-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-red-600"
+                >
+                  {datasets.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
 
           <Link
@@ -235,7 +295,7 @@ export default function ComparePage() {
             </div>
             {trainingResults.map((result) => (
               <div
-                key={`artifact-${result.model_name}`}
+                key={`artifact-${result.model_name}-${result.artifact_path ?? result.status}`}
                 className="border-b border-neutral-900 px-6 py-5 text-sm text-neutral-200 last:border-b-0"
               >
                 <div className="grid gap-4 md:grid-cols-[1.4fr_repeat(5,minmax(0,1fr))]">

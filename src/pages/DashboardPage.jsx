@@ -8,11 +8,27 @@ export default function DashboardPage() {
   const location = useLocation();
   const [analysis, setAnalysis] = useState(null);
   const [dataset, setDataset] = useState(location.state?.dataset ?? null);
+  const [datasets, setDatasets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
+
+    async function loadDatasets() {
+      try {
+        const availableDatasets = await apiRequest("/upload/datasets");
+        if (!active) {
+          return;
+        }
+        setDatasets(availableDatasets);
+        if (!dataset && availableDatasets.length) {
+          setDataset(availableDatasets[0]);
+        }
+      } catch {
+        // Dataset loading is best-effort here. Analysis requests surface their own errors.
+      }
+    }
 
     async function loadAnalysis() {
       try {
@@ -61,6 +77,7 @@ export default function DashboardPage() {
       }
     }
 
+    loadDatasets();
     loadAnalysis();
     return () => {
       active = false;
@@ -81,6 +98,35 @@ export default function DashboardPage() {
             <p className="mt-3 text-neutral-400">
               Dataset: {dataset?.name ?? "--"}
             </p>
+            {datasets.length ? (
+              <div className="mt-5 max-w-sm">
+                <label
+                  htmlFor="dashboard-dataset"
+                  className="mb-2 block text-xs font-bold uppercase tracking-[0.25em] text-neutral-500"
+                >
+                  Switch Dataset
+                </label>
+                <select
+                  id="dashboard-dataset"
+                  value={dataset?.id ?? ""}
+                  onChange={(event) => {
+                    const nextDataset = datasets.find(
+                      (item) => item.id === Number(event.target.value),
+                    );
+                    if (nextDataset) {
+                      setDataset(nextDataset);
+                    }
+                  }}
+                  className="w-full border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-red-600"
+                >
+                  {datasets.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
 
           {analysis?.dataset ? (

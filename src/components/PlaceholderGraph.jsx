@@ -3,7 +3,7 @@ export default function PlaceholderGraph({ graph }) {
   const svgHeight = 360;
   const centerX = svgWidth / 2;
   const centerY = svgHeight / 2;
-  const radius = 120;
+  const radius = 124;
   const nodes = graph?.top_nodes ?? [];
   const edges = graph?.top_edges ?? [];
 
@@ -15,16 +15,25 @@ export default function PlaceholderGraph({ graph }) {
     );
   }
 
+  const connectedNodeIds = new Set(
+    edges.flatMap((edge) => [edge.source, edge.target]),
+  );
+
   const positionedNodes = nodes.map((node, index) => {
-    const angle = (Math.PI * 2 * index) / nodes.length;
+    const angleOffset = nodes.length % 2 === 0 ? Math.PI / nodes.length : 0;
+    const angle = (Math.PI * 2 * index) / nodes.length + angleOffset;
+    const amountWeight = Math.min(Math.max(node.total_amount, 0), 1_000_000) / 1_000_000;
+    const dynamicRadius = radius - amountWeight * 18;
     return {
       ...node,
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius,
+      x: centerX + Math.cos(angle) * dynamicRadius,
+      y: centerY + Math.sin(angle) * dynamicRadius,
     };
   });
 
   const getNode = (id) => positionedNodes.find((node) => node.id === id);
+  const formatLabel = (label) =>
+    label.length > 12 ? `${label.slice(0, 6)}...${label.slice(-3)}` : label;
 
   return (
     <div className="flex h-full w-full items-center justify-center">
@@ -32,6 +41,15 @@ export default function PlaceholderGraph({ graph }) {
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="h-full w-full max-h-[360px]"
       >
+        <defs>
+          <radialGradient id="graphGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(255,0,0,0.18)" />
+            <stop offset="100%" stopColor="rgba(255,0,0,0)" />
+          </radialGradient>
+        </defs>
+
+        <circle cx={centerX} cy={centerY} r="110" fill="url(#graphGlow)" />
+
         {edges.map((edge) => {
           const source = getNode(edge.source);
           const target = getNode(edge.target);
@@ -46,8 +64,8 @@ export default function PlaceholderGraph({ graph }) {
               y1={source.y}
               x2={target.x}
               y2={target.y}
-              stroke="rgba(255,255,255,0.25)"
-              strokeWidth={Math.max(1, edge.count)}
+              stroke="rgba(255,255,255,0.28)"
+              strokeWidth={Math.max(1, Math.min(edge.count, 4))}
             />
           );
         })}
@@ -57,8 +75,10 @@ export default function PlaceholderGraph({ graph }) {
             <circle
               cx={node.x}
               cy={node.y}
-              r={10 + Math.min(node.degree, 8)}
-              className={node.total_amount > 0 ? "fraud-node" : "normal-node"}
+              r={10 + Math.min(node.degree, 10)}
+              className={
+                connectedNodeIds.has(node.id) ? "fraud-node" : "normal-node"
+              }
             />
             <text
               x={node.x}
@@ -66,7 +86,7 @@ export default function PlaceholderGraph({ graph }) {
               textAnchor="middle"
               className="fill-neutral-300 text-[10px]"
             >
-              {node.label}
+              {formatLabel(node.label)}
             </text>
           </g>
         ))}

@@ -66,24 +66,67 @@ def build_transaction_graph_from_prepared(
     labeled = prepared.dropna(subset=["label"]).copy()
     labeled["original_index"] = labeled.index
     labeled["label"] = labeled["label"].astype(int)
+    train_index_set: set[int] = set()
+    test_index_set: set[int] = set()
     if labeled["label"].nunique() < 2 or len(labeled) < 20:
         raise ValueError(
             "Need at least 20 labeled rows with both fraud and non-fraud classes."
         )
 
-    if len(labeled) > max_nodes:
-        fraud_rows = labeled[labeled["label"] == 1]
-        legit_rows = labeled[labeled["label"] == 0]
-        legit_target = max(max_nodes - len(fraud_rows), 0)
-        if legit_target > 0:
-            legit_rows = legit_rows.sample(
-                n=min(legit_target, len(legit_rows)),
-                random_state=random_state,
-            )
-        labeled = fraud_rows if legit_target == 0 else pd.concat(
-            [fraud_rows, legit_rows],
-            ignore_index=True,
+    if train_indices is not None and test_indices is not None:
+        train_index_set = set(train_indices)
+        test_index_set = set(test_indices)
+        labeled["split_group"] = labeled["original_index"].map(
+            lambda index: "train"
+            if index in train_index_set
+            else "test"
+            if index in test_index_set
+            else "other"
         )
+    else:
+        labeled["split_group"] = "all"
+
+    if len(labeled) > max_nodes:
+        sample_fraction = max_nodes / len(labeled)
+        sampled_groups: list[pd.DataFrame] = []
+
+        for (_split_group, _label), group in labeled.groupby(["split_group", "label"], sort=False):
+            if group.empty:
+                continue
+            sample_size = min(
+                len(group),
+                max(1, int(round(len(group) * sample_fraction))),
+            )
+            sampled_groups.append(
+                group.sample(n=sample_size, random_state=random_state)
+            )
+
+        labeled = pd.concat(sampled_groups, ignore_index=True)
+        if len(labeled) > max_nodes:
+            labeled = labeled.sample(n=max_nodes, random_state=random_state)
+        elif len(labeled) < max_nodes:
+            sampled_indices = set(labeled["original_index"].tolist())
+            remainder = prepared.loc[
+                prepared.index.isin(
+                    [index for index in prepared.index if index not in sampled_indices]
+                )
+            ].dropna(subset=["label"]).copy()
+            if not remainder.empty:
+                remainder["original_index"] = remainder.index
+                remainder["label"] = remainder["label"].astype(int)
+                remainder["split_group"] = remainder["original_index"].map(
+                    lambda index: "train"
+                    if index in train_index_set
+                    else "test"
+                    if index in test_index_set
+                    else "other"
+                )
+                extra_rows = remainder.sample(
+                    n=min(max_nodes - len(labeled), len(remainder)),
+                    random_state=random_state,
+                )
+                labeled = pd.concat([labeled, extra_rows], ignore_index=True)
+
         labeled = labeled.sample(frac=1.0, random_state=random_state).reset_index(drop=True)
 
     features_frame = get_numeric_feature_frame(labeled)

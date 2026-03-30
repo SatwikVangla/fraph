@@ -26,20 +26,45 @@ def build_graph(dataset_path: str, limit: int = 10) -> dict[str, object]:
             total_amount += float(data.get("total_amount", 0.0))
         graph.nodes[node]["total_amount"] = total_amount
 
-    top_nodes = sorted(
+    ranked_nodes = sorted(
         graph.nodes,
         key=lambda node: (
             graph.degree(node),
             graph.nodes[node].get("total_amount", 0.0),
         ),
         reverse=True,
-    )[:limit]
+    )
 
-    top_edges = sorted(
+    ranked_edges = sorted(
         graph.edges(data=True),
         key=lambda edge: edge[2].get("total_amount", 0.0),
         reverse=True,
-    )[:limit]
+    )
+
+    selected_node_ids: list[str] = []
+    for source, target, _data in ranked_edges:
+        for node_id in (source, target):
+            if node_id not in selected_node_ids:
+                selected_node_ids.append(node_id)
+            if len(selected_node_ids) >= limit:
+                break
+        if len(selected_node_ids) >= limit:
+            break
+
+    if len(selected_node_ids) < limit:
+        for node_id in ranked_nodes:
+            if node_id not in selected_node_ids:
+                selected_node_ids.append(node_id)
+            if len(selected_node_ids) >= limit:
+                break
+
+    selected_node_set = set(selected_node_ids)
+    top_nodes = [node_id for node_id in selected_node_ids if node_id in selected_node_set]
+    top_edges = [
+        (source, target, data)
+        for source, target, data in ranked_edges
+        if source in selected_node_set and target in selected_node_set
+    ][: max(limit * 2, 1)]
 
     density = nx.density(graph) if graph.number_of_nodes() > 1 else 0.0
     components = (

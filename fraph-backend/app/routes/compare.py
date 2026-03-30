@@ -34,6 +34,7 @@ def compare_models(
     record = _resolve_dataset(payload, db)
     model_results = compare_baseline_models(
         dataset_path=record.stored_path,
+        dataset_name=record.name,
         requested_models=payload.model_names,
     )
 

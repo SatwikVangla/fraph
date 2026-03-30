@@ -11,9 +11,22 @@ from sklearn.svm import LinearSVC
 
 from app.services.evaluation import compute_binary_classification_metrics
 from app.services.fraud_detection import get_numeric_feature_frame
-from app.services.gnn_model import get_gnn_comparison_result
+from app.services.gnn_model import (
+    build_transaction_graph_from_prepared,
+    train_gnn_from_graph,
+)
 from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
+
+GNN_COMPARE_CONFIG = {
+    "epochs": 5,
+    "hidden_dim": 32,
+    "learning_rate": 0.01,
+    "dropout": 0.2,
+    "use_similarity_edges": True,
+    "use_party_edges": True,
+    "use_class_weights": True,
+}
 
 
 def get_model_specs() -> dict[str, object]:
@@ -76,7 +89,7 @@ def prepare_labeled_dataset(dataset_path: str):
     if "label" not in prepared.columns or prepared["label"].dropna().empty:
         raise ValueError("Model training requires a labeled fraud column.")
 
-    labeled = prepared.dropna(subset=["label"]).copy()
+    labeled = prepared.dropna(subset=["label"]).copy().reset_index(drop=True)
     labeled["label"] = labeled["label"].astype(bool)
     if labeled["label"].nunique() < 2 or len(labeled) < 10:
         raise ValueError(
@@ -90,10 +103,11 @@ def prepare_labeled_dataset(dataset_path: str):
 
 def compare_baseline_models(
     dataset_path: str,
+    dataset_name: str | None = None,
     requested_models: list[str] | None = None,
 ) -> list[dict[str, object]]:
     try:
-        _labeled, features, labels = prepare_labeled_dataset(dataset_path)
+        labeled, features, labels = prepare_labeled_dataset(dataset_path)
     except ValueError as exc:
         return [
             {
@@ -103,13 +117,17 @@ def compare_baseline_models(
             }
         ]
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        features,
+    train_indices, test_indices, _y_train_split, _y_test_split = train_test_split(
+        features.index,
         labels,
         test_size=0.25,
         random_state=42,
         stratify=labels,
     )
+    x_train = features.loc[train_indices]
+    x_test = features.loc[test_indices]
+    y_train = labels.loc[train_indices]
+    y_test = labels.loc[test_indices]
 
     requested = set(requested_models or get_model_specs().keys())
     unsupported_models = sorted(requested - set(get_model_specs().keys()))
@@ -136,7 +154,37 @@ def compare_baseline_models(
         )
 
     if include_gnn_result:
-        results.append(get_gnn_comparison_result())
+        try:
+            graph = build_transaction_graph_from_prepared(
+                prepared=labeled,
+                train_indices=list(train_indices),
+                test_indices=list(test_indices),
+                use_similarity_edges=GNN_COMPARE_CONFIG["use_similarity_edges"],
+                use_party_edges=GNN_COMPARE_CONFIG["use_party_edges"],
+            )
+            gnn_result = train_gnn_from_graph(
+                graph=graph,
+                dataset_name=dataset_name or "comparison",
+                epochs=GNN_COMPARE_CONFIG["epochs"],
+                hidden_dim=GNN_COMPARE_CONFIG["hidden_dim"],
+                learning_rate=GNN_COMPARE_CONFIG["learning_rate"],
+                artifact_name="gnn",
+                persist_artifact=False,
+                use_class_weights=GNN_COMPARE_CONFIG["use_class_weights"],
+                dropout=GNN_COMPARE_CONFIG["dropout"],
+            )
+            gnn_result["details"] = (
+                "GNN evaluated on a transaction graph built from the selected dataset."
+            )
+            results.append(gnn_result)
+        except ValueError as exc:
+            results.append(
+                {
+                    "model_name": "gnn",
+                    "status": "skipped",
+                    "details": str(exc),
+                }
+            )
 
     return results
 
