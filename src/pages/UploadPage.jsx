@@ -2,78 +2,92 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export default function UploadPage() {
+  const navigate = useNavigate();
+  const [file, setFile] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState("");
 
-const navigate = useNavigate();
-const [file, setFile] = useState(null);
-const [scanning, setScanning] = useState(false);
+  const runAnalysis = async () => {
+    if (!file) {
+      setError("Select a dataset before running analysis.");
+      return;
+    }
 
-const runAnalysis = () => {
+    setError("");
+    setScanning(true);
 
-```
-setScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-setTimeout(() => {
-  navigate("/dashboard");
-}, 2500);
-```
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || ""}/upload/`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
-};
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
 
-return (
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1200);
+    } catch (uploadError) {
+      setScanning(false);
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Upload failed. Check that the backend is running.",
+      );
+    }
+  };
 
+  return (
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6">
+      <h1 className="text-center text-4xl md:text-5xl font-black mb-16 tracking-widest">
+        DATASET TERMINAL
+      </h1>
 
-<div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+      <div className="w-full max-w-2xl border-2 border-red-600 p-10 md:p-16 rounded-xl text-center hover:bg-red-600/10 transition">
+        <p className="mb-6 text-lg tracking-wide">Drop Transaction Dataset</p>
 
-  <h1 className="text-5xl font-black mb-16 tracking-widest">
-    DATASET TERMINAL
-  </h1>
+        <input
+          type="file"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          className="mb-4 block w-full text-sm text-neutral-300 file:mr-4 file:rounded-md file:border file:border-red-600 file:bg-transparent file:px-4 file:py-2 file:text-white hover:file:bg-red-600/10"
+        />
 
-  {/* Upload Zone */}
+        <p className="mb-8 min-h-6 text-sm text-neutral-400">
+          {file ? `Selected: ${file.name}` : "No dataset selected"}
+        </p>
 
-  <div className="border-2 border-red-600 p-16 rounded-xl text-center hover:bg-red-600/10 transition">
+        <button
+          onClick={runAnalysis}
+          disabled={scanning}
+          className="px-10 py-3 border border-red-600 hover:bg-red-600 transition font-bold tracking-wider disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {scanning ? "UPLOADING..." : "RUN FRAUD ANALYSIS"}
+        </button>
 
-    <p className="mb-6 text-lg tracking-wide">
-      Drop Transaction Dataset
-    </p>
-
-    <input
-      type="file"
-      onChange={(e) => setFile(e.target.files[0])}
-      className="mb-8"
-    />
-
-    <button
-       onClick={() => navigate("/dashboard")}
-       className="px-10 py-3 border border-red-600 hover:bg-red-600 transition font-bold tracking-wider"
-    >
-      RUN FRAUD ANALYSIS
-    </button>
-
-  </div>
-
-  {/* Scanning Animation */}
-
-  {scanning && (
-
-    <div className="mt-16 text-center">
-
-      <p className="animate-pulse text-red-500 mb-4">
-        SCANNING TRANSACTIONS...
-      </p>
-
-      <div className="w-64 h-1 bg-neutral-800 overflow-hidden">
-
-        <div className="h-full bg-red-600 animate-loading-bar"></div>
-
+        {error ? (
+          <p className="mt-6 text-sm text-red-400">{error}</p>
+        ) : null}
       </div>
 
+      {scanning ? (
+        <div className="mt-16 text-center">
+          <p className="animate-pulse text-red-500 mb-4">
+            SCANNING TRANSACTIONS...
+          </p>
+
+          <div className="w-64 h-1 bg-neutral-800 overflow-hidden">
+            <div className="h-full bg-red-600 animate-loading-bar"></div>
+          </div>
+        </div>
+      ) : null}
     </div>
-
-  )}
-
-</div>
-
-
-);
+  );
 }
-
