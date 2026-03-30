@@ -13,9 +13,16 @@ dist
 __pycache__
 *.pyc
 venv
+.venv
 .DS_Store
 dist-ssr
 *.local
+fraph-backend/.venv/
+fraph-backend/fraph.db
+fraph-backend/datasets/*.csv
+!fraph-backend/datasets/.gitkeep
+fraph-backend/trained_models/*
+!fraph-backend/trained_models/.gitkeep
 
 # Editor directories and files
 .vscode/*

@@ -1,67 +1,76 @@
-export default function PlaceholderGraph() {
+export default function PlaceholderGraph({ graph }) {
+  const svgWidth = 540;
+  const svgHeight = 360;
+  const centerX = svgWidth / 2;
+  const centerY = svgHeight / 2;
+  const radius = 120;
+  const nodes = graph?.top_nodes ?? [];
+  const edges = graph?.top_edges ?? [];
 
-const nodes = [
-{ id: 1, x: 80, y: 80 },
-{ id: 2, x: 300, y: 80 },
-{ id: 3, x: 190, y: 180, fraud: true },
-{ id: 4, x: 80, y: 280 },
-{ id: 5, x: 300, y: 280 }
-];
+  if (!nodes.length) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-neutral-500">
+        Upload a dataset to render graph activity.
+      </div>
+    );
+  }
 
-const edges = [
-[1,2],
-[1,3],
-[2,3],
-[3,4],
-[3,5]
-];
+  const positionedNodes = nodes.map((node, index) => {
+    const angle = (Math.PI * 2 * index) / nodes.length;
+    return {
+      ...node,
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    };
+  });
 
-const getNode = (id) => nodes.find(n => n.id === id);
+  const getNode = (id) => positionedNodes.find((node) => node.id === id);
 
-return (
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      <svg
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="h-full w-full max-h-[360px]"
+      >
+        {edges.map((edge) => {
+          const source = getNode(edge.source);
+          const target = getNode(edge.target);
+          if (!source || !target) {
+            return null;
+          }
 
+          return (
+            <line
+              key={`${edge.source}-${edge.target}`}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
+              stroke="rgba(255,255,255,0.25)"
+              strokeWidth={Math.max(1, edge.count)}
+            />
+          );
+        })}
 
-<div className="w-full h-full flex items-center justify-center">
-
-  <svg width="400" height="350">
-
-    {/* EDGES */}
-
-    {edges.map(([a,b],i)=>{
-
-      const n1 = getNode(a);
-      const n2 = getNode(b);
-
-      return (
-        <line
-          key={i}
-          x1={n1.x}
-          y1={n1.y}
-          x2={n2.x}
-          y2={n2.y}
-          stroke="rgba(255,255,255,0.4)"
-          strokeWidth="2"
-        />
-      );
-    })}
-
-    {/* NODES */}
-
-    {nodes.map((node,i)=>(
-      <circle
-        key={i}
-        cx={node.x}
-        cy={node.y}
-        r="8"
-        className={node.fraud ? "fraud-node" : "normal-node"}
-      />
-    ))}
-
-  </svg>
-
-</div>
-
-
-);
+        {positionedNodes.map((node) => (
+          <g key={node.id}>
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={10 + Math.min(node.degree, 8)}
+              className={node.total_amount > 0 ? "fraud-node" : "normal-node"}
+            />
+            <text
+              x={node.x}
+              y={node.y + 28}
+              textAnchor="middle"
+              className="fill-neutral-300 text-[10px]"
+            >
+              {node.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
 }
-

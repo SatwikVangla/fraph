@@ -1,3 +1,6 @@
-fastapi==0.116.1
-python-multipart==0.0.20
-uvicorn==0.35.0
+# Install with:
+# 1. pip install -r requirements-base.txt
+# 2. pip install --index-url https://download.pytorch.org/whl/cpu -r requirements-cpu.txt
+#
+# Keeping CPU PyTorch separate avoids accidentally pulling CUDA wheels on
+# Windows/Linux machines that do not need GPU support.
