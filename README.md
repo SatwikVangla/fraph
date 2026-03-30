@@ -230,6 +230,281 @@ Saved artifacts include:
 - `.joblib` files for traditional models
 - `.pt` file for the GNN
 
+## Paper Evaluation Workflow
+
+If your goal is a paper, do not rely on a single dashboard run. Use the experiment runner in `fraph-backend/experiments` so every model is evaluated on the same repeated stratified splits.
+
+### Recommended Metrics
+
+For fraud datasets, report all of these:
+
+- Accuracy
+- Precision
+- Recall
+- F1-score
+- ROC-AUC
+- PR-AUC
+- MCC
+- Confusion matrix values: `TN`, `FP`, `FN`, `TP`
+
+### Run A Full Benchmark
+
+After activating the backend virtual environment:
+
+```bash
+cd fraph-backend
+python -m experiments.run_benchmark --dataset datasets/fraud_data_kaggle_sample.csv
+```
+
+That command runs repeated stratified cross-validation for:
+
+- KNN
+- Logistic Regression
+- Linear SVC
+- Random Forest
+- GNN
+
+### Run A GNN Hyperparameter Sweep
+
+Use this when you want to tune the proposed GNN before writing your final comparison table:
+
+```bash
+cd fraph-backend
+python -m experiments.run_gnn_sweep --dataset datasets/fraud_data_kaggle_sample.csv
+```
+
+This evaluates multiple combinations of:
+
+- epochs
+- hidden dimension
+- learning rate
+- dropout
+
+Outputs are written to:
+
+- `fraph-backend/outputs/<dataset>-gnn-sweep/`
+
+Important file:
+
+- `sweep_results.csv`
+
+Use that file to pick the best GNN configuration by `f1_mean`, `pr_auc_mean`, and `roc_auc_mean`.
+
+### Run GNN Ablation Experiments
+
+Use this when you want to justify your GNN design in the paper:
+
+```bash
+cd fraph-backend
+python -m experiments.run_gnn_ablation --dataset datasets/fraud_data_kaggle_sample.csv
+```
+
+The current ablations compare:
+
+- full GNN
+- no similarity edges
+- no party edges
+- no class weighting
+
+Outputs are written to:
+
+- `fraph-backend/outputs/<dataset>-gnn-ablation/`
+
+Important file:
+
+- `ablation_results.csv`
+
+### Generate A Paper-Ready Results Report
+
+After running the benchmark, generate paper-friendly tables:
+
+```bash
+cd fraph-backend
+python -m experiments.generate_paper_report \
+  --summary outputs/<run-folder>/summary_metrics.csv \
+  --output outputs/paper_report
+```
+
+This produces:
+
+- `ranked_summary.csv`
+- `paper_table.csv`
+- `paper_table.tex`
+- `paper_report.md`
+
+Default experiment settings:
+
+- `5` folds
+- `3` repeats
+- fixed random seed
+
+### Customize The Benchmark
+
+Example with custom folds, repeats, and GNN settings:
+
+```bash
+python -m experiments.run_benchmark \
+  --dataset datasets/fraud_data_kaggle_sample.csv \
+  --folds 5 \
+  --repeats 3 \
+  --models knn logistic_regression linear_svc random_forest gnn \
+  --gnn-epochs 30 \
+  --gnn-hidden-dim 32 \
+  --gnn-learning-rate 0.01
+```
+
+Windows PowerShell example:
+
+```powershell
+python -m experiments.run_benchmark `
+  --dataset datasets/fraud_data_kaggle_sample.csv `
+  --folds 5 `
+  --repeats 3 `
+  --models knn logistic_regression linear_svc random_forest gnn `
+  --gnn-epochs 30 `
+  --gnn-hidden-dim 32 `
+  --gnn-learning-rate 0.01
+```
+
+### Experiment Outputs
+
+Each run writes a timestamped folder under:
+
+- `fraph-backend/outputs/`
+
+The output folder contains:
+
+- `fold_metrics.csv`
+- `fold_metrics.json`
+- `summary_metrics.csv`
+- `summary_metrics.md`
+- `run_config.json`
+- `plots/<model>_pr_curve.png`
+- `plots/<model>_roc_curve.png`
+- `plots/<model>_confusion_matrix.png`
+
+### How To Read The Results
+
+For paper tables, use `summary_metrics.csv` or `summary_metrics.md`.
+
+Interpretation:
+
+- `accuracy_mean` and `accuracy_std`: average accuracy and variability
+- `f1_mean`: better than accuracy for imbalanced fraud data
+- `pr_auc_mean`: especially important when fraud cases are rare
+- `mcc_mean`: balanced signal even under heavy class imbalance
+
+For your paper, the main comparison table should usually report:
+
+- `Precision`
+- `Recall`
+- `F1`
+- `ROC-AUC`
+- `PR-AUC`
+- `MCC`
+
+Accuracy can still be included, but it should not be your main argument on imbalanced data.
+
+## Working With Different Dataset Types
+
+The current pipeline is strongest on transaction datasets with:
+
+- sender/source account
+- receiver/destination account
+- transaction amount
+- fraud label
+
+### Supported Best
+
+PaySim-style datasets:
+
+- `nameOrig`
+- `nameDest`
+- `amount`
+- `type`
+- `step`
+- `oldbalanceOrg`
+- `newbalanceOrig`
+- `oldbalanceDest`
+- `newbalanceDest`
+- `isFraud`
+
+This is the best option for:
+
+- dashboard graph quality
+- classical model comparison
+- current GNN baseline
+
+### Also Supported
+
+Generic labeled transaction CSVs can still work if they at least provide:
+
+- sender/source column
+- receiver/target column
+- amount/value column
+- fraud label column
+
+If balances or transaction type are missing, the pipeline still runs, but model quality may drop.
+
+### Weak Fit
+
+Purely tabular fraud datasets with no sender/receiver structure can still be used for classical ML benchmarking, but:
+
+- graph visualization becomes weak
+- the GNN becomes much less meaningful
+- the paper claim becomes more about tabular fraud detection than graph learning
+
+### Inspect A New Dataset Before Training
+
+Use the dataset inspector first:
+
+```bash
+cd fraph-backend
+python -m experiments.inspect_dataset --dataset path/to/your_dataset.csv
+```
+
+It reports:
+
+- detected columns
+- whether the dataset is dashboard-ready
+- whether it is comparison-ready
+- whether it looks PaySim-like
+
+### Quick Decision Rule For New Datasets
+
+Use these rules before running expensive experiments:
+
+- If the dataset has `sender`, `receiver`, `amount`, and a fraud label:
+  good candidate for both classical models and the current GNN
+- If the dataset has only tabular features and a label:
+  good for classical ML, weak for graph claims
+- If the dataset is graph-native but not CSV-shaped:
+  useful for future GNN work, but it likely needs a custom loader first
+
+## Suggested Research Setup
+
+If you want publishable results, use this sequence:
+
+1. Run the experiment runner on PaySim and save the summary table.
+2. Tune the GNN with ablations:
+   - hidden dimension
+   - learning rate
+   - epochs
+   - graph construction strategy
+   - class-weighted vs unweighted loss
+3. Compare the tuned GNN against the same traditional baselines.
+4. Add a second dataset if possible, especially a more graph-native one.
+5. Include mean ± std across repeated folds in the paper.
+
+## Practical Advice For Your Paper
+
+- Do not claim superiority from a single split.
+- Do not rely on accuracy alone.
+- Include PR-AUC and MCC.
+- Report the exact dataset size, fraud ratio, and preprocessing assumptions.
+- Freeze seeds and experiment settings before writing the final table.
+- Keep one final held-out setup if you want a cleaner final result beyond CV summaries.
+
 ## Current Backend Endpoints
 
 - `GET /`

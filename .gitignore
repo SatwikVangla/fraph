@@ -23,6 +23,7 @@ fraph-backend/datasets/*.csv
 !fraph-backend/datasets/.gitkeep
 fraph-backend/trained_models/*
 !fraph-backend/trained_models/.gitkeep
+fraph-backend/outputs/
 
 # Editor directories and files
 .vscode/*

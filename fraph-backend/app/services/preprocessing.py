@@ -46,7 +46,12 @@ COLUMN_ALIASES = {
     "label": ["is_fraud", "fraud", "label", "class", "target_flag", "isfraud"],
     "transaction_type": ["type", "transaction_type", "channel", "payment_type"],
     "step": ["step", "timestamp", "time", "date", "transaction_time"],
-    "oldbalance_orig": ["oldbalanceorig", "oldbalance_org", "oldbalanceorigin"],
+    "oldbalance_orig": [
+        "oldbalanceorig",
+        "oldbalance_org",
+        "oldbalanceorigin",
+        "oldbalanceorg",
+    ],
     "newbalance_orig": ["newbalanceorig", "newbalance_org", "newbalanceorigin"],
     "oldbalance_dest": ["oldbalancedest", "oldbalance_dest"],
     "newbalance_dest": ["newbalancedest", "newbalance_dest"],
