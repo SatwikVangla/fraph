@@ -1,127 +1,219 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --fraph-red: #ff0000;
-  --fraph-black: #000000;
+  --fraph-red-strong: #d61f2c;
+  --fraph-red-alert: #ff4d5a;
+  --fraph-red-deep: #6f0912;
+  --fraph-surface: #120809;
+  --fraph-black: #050505;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
   background-color: var(--fraph-black);
   color: white;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family:
+    "Space Grotesk", "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   overflow-x: hidden;
 }
 
-canvas{
- display: block;
-
+#root {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(214, 31, 44, 0.12), transparent 28%),
+    linear-gradient(180deg, #120608 0%, #070707 42%, #040404 100%);
 }
 
-/* WAVY BACKGROUND */
+canvas {
+  display: block;
+}
+
+.homepage-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black 48%, transparent 95%);
+  pointer-events: none;
+  z-index: 12;
+}
 
 .wavy-texture {
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23FF0000' fill-opacity='0.05' d='M44.7,-76.4C58.1,-69.2,69.2,-57.1,76.4,-43.3C83.6,-29.5,86.9,-14.8,85.5,-0.8C84.1,13.1,78,26.3,70.2,39.1C62.4,51.9,52.8,64.4,40.5,71.7C28.2,79,14.1,81.1,-0.5,82C-15.1,82.9,-30.2,82.6,-43.3,75.9C-56.4,69.2,-67.5,56.1,-75.1,41.4C-82.7,26.7,-86.8,10.3,-84.8,-5.2C-82.8,-20.7,-74.7,-35.3,-64.1,-46.8C-53.5,-58.3,-40.4,-66.7,-26.7,-73.4C-13.1,-80.1,1.1,-85.1,16.8,-83.6C32.5,-82.1,44.7,-76.4,44.7,-76.4Z' transform='translate(100 100)' /%3E%3C/svg%3E");
-  background-size: 800px;
-  animation: wave-float 20s linear infinite;
-  opacity: 0.3;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23D61F2C' fill-opacity='0.11' d='M44.7,-76.4C58.1,-69.2,69.2,-57.1,76.4,-43.3C83.6,-29.5,86.9,-14.8,85.5,-0.8C84.1,13.1,78,26.3,70.2,39.1C62.4,51.9,52.8,64.4,40.5,71.7C28.2,79,14.1,81.1,-0.5,82C-15.1,82.9,-30.2,82.6,-43.3,75.9C-56.4,69.2,-67.5,56.1,-75.1,41.4C-82.7,26.7,-86.8,10.3,-84.8,-5.2C-82.8,-20.7,-74.7,-35.3,-64.1,-46.8C-53.5,-58.3,-40.4,-66.7,-26.7,-73.4C-13.1,-80.1,1.1,-85.1,16.8,-83.6C32.5,-82.1,44.7,-76.4,44.7,-76.4Z' transform='translate(100 100)' /%3E%3C/svg%3E");
+  background-size: 720px;
+  animation: wave-float 28s linear infinite;
+}
+
+.scanlines {
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.015) 0,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 6px
+  );
+  opacity: 0.18;
+}
+
+.hero-title {
+  position: relative;
+  text-wrap: balance;
+}
+
+.hero-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -16px;
+  width: min(180px, 42%);
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 77, 90, 0.9), rgba(255, 77, 90, 0));
+  box-shadow: 0 0 24px rgba(255, 77, 90, 0.45);
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 28px rgba(214, 31, 44, 0.42);
+}
+
+.bottom-wordmark {
+  user-select: none;
+  letter-spacing: -0.08em;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 80%);
+  opacity: 0.14;
+}
+
+.hero-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12rem;
+  height: 12rem;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 40% 35%, rgba(255, 138, 146, 0.95), rgba(214, 31, 44, 0.5) 34%, rgba(27, 10, 12, 0.1) 68%, transparent 74%);
+  filter: blur(6px);
+  box-shadow:
+    0 0 80px rgba(214, 31, 44, 0.32),
+    0 0 160px rgba(214, 31, 44, 0.18);
+  opacity: 0.9;
+}
+
+.hero-orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(255, 106, 117, 0.22);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.hero-orbit-a {
+  width: 20rem;
+  height: 20rem;
+  box-shadow: 0 0 40px rgba(214, 31, 44, 0.14);
+  animation: orbit-spin 20s linear infinite;
+}
+
+.hero-orbit-b {
+  width: 28rem;
+  height: 16rem;
+  border-color: rgba(255, 106, 117, 0.12);
+  animation: orbit-spin-reverse 26s linear infinite;
 }
 
 @keyframes wave-float {
-  from { background-position: 0 0; }
-  to { background-position: 800px 800px; }
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 720px 720px;
+  }
 }
 
-/* GLITCH TEXT */
+@keyframes orbit-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
 
-.glitch-text {
-  position: relative;
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
-.glitch-text::before,
-.glitch-text::after {
-  content: "FRAPH";
+@keyframes orbit-spin-reverse {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(-360deg);
+  }
+}
+
+.node {
   position: absolute;
-  inset: 0;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
 }
 
-.glitch-text::before {
-  color: red;
-  animation: glitch1 3s infinite linear alternate;
+.node.fraud {
+  background: red;
+  box-shadow: 0 0 10px red;
 }
 
-.glitch-text::after {
-  color: cyan;
-  opacity: 0.4;
-  animation: glitch2 2.5s infinite linear alternate;
+.edge {
+  position: absolute;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.4);
 }
 
-@keyframes glitch1 {
-  0% { transform: translate(2px,2px) }
-  50% { transform: translate(-2px,-2px) }
-  100% { transform: translate(1px,-1px) }
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.3);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
-@keyframes glitch2 {
-  0% { transform: translate(-2px,-1px) }
-  50% { transform: translate(2px,1px) }
-  100% { transform: translate(-1px,2px) }
+.normal-node {
+  fill: white;
+  animation: pulse 2s infinite;
 }
 
-/* BUTTON GLOW */
-
-.btn-glow:hover {
-  box-shadow: 0 0 20px rgba(255,0,0,0.6);
-}
-
-@keyframes loading-bar {
-  0% { width: 0%; }
-  100% { width: 100%; }
-}
-
-.animate-loading-bar {
-  animation: loading-bar 2.5s linear forwards;
-}
-
-.node{
-position:absolute;
-width:14px;
-height:14px;
-background:white;
-border-radius:50%;
-animation:pulse 2s infinite;
-}
-
-.node.fraud{
-background:red;
-box-shadow:0 0 10px red;
-}
-
-.edge{
-position:absolute;
-height:2px;
-background:rgba(255,255,255,0.4);
-}
-
-@keyframes pulse{
-0%{transform:scale(1)}
-50%{transform:scale(1.3)}
-100%{transform:scale(1)}
-}
-
-.normal-node{
-fill:white;
-animation:pulse 2s infinite;
-}
-
-.fraud-node{
-fill:red;
-animation:pulse 2s infinite;
-filter:drop-shadow(0 0 6px red);
+.fraud-node {
+  fill: red;
+  animation: pulse 2s infinite;
+  filter: drop-shadow(0 0 6px red);
 }

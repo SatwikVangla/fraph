@@ -13,89 +13,99 @@ export default function ParticleBackground() {
     });
   }, []);
 
-  if (!init) return null;
+  if (!init) {
+    return null;
+  }
 
   return (
-    <div style={{ position: "absolute", inset: 0,pointerEvents: "none", zIndex: 1 }}>
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
       <Particles
         id="fraud-network"
         style={{ position: "absolute", inset: 0 }}
         options={{
           fullScreen: { enable: false },
           background: { color: "transparent" },
-
           fpsLimit: 60,
-
           interactivity: {
             events: {
               onHover: {
                 enable: true,
-                mode: "connect"
-              }
+                mode: "grab",
+              },
+              resize: {
+                enable: true,
+              },
             },
             modes: {
-              connect: {
-                distance: 170,
+              grab: {
+                distance: 180,
                 links: {
-                  opacity: 0.6
-                }
-              }
-            }
+                  opacity: 0.35,
+                },
+              },
+            },
           },
-
           particles: {
             number: {
               density: {
-                enable: true
+                enable: true,
+                area: 900,
               },
-              value: 140
+              value: 120,
             },
-
             color: {
-              value: ["#ffffff", "#ffffff", "#ffffff", "#ff0000"]
+              value: ["#671019", "#8a1018", "#d61f2c", "#ff4d5a"],
             },
-
-            shape: {
-              type: "circle"
-            },
-
-            size: {
-              value: { min: 1, max: 3 }
-            },
-
             opacity: {
-              value: 0.6
+              value: { min: 0.18, max: 0.8 },
             },
-
+            shape: {
+              type: "circle",
+            },
+            size: {
+              value: { min: 1, max: 4.5 },
+            },
             links: {
               enable: true,
-              color: "#ffffff",
-              distance: 170,
-              opacity: 0.35,
-              width: 1
+              color: "#8a1018",
+              distance: 160,
+              opacity: 0.22,
+              width: 1,
+              triangles: {
+                enable: false,
+              },
             },
-
             move: {
               enable: true,
-              speed: 0.5,
+              speed: { min: 0.18, max: 0.6 },
               direction: "none",
-              random: false,
+              random: true,
               straight: false,
               outModes: {
-                default: "bounce"
-              }
+                default: "out",
+              },
+              attract: {
+                enable: true,
+                distance: 180,
+                rotate: {
+                  x: 600,
+                  y: 1200,
+                },
+              },
+              trail: {
+                enable: false,
+              },
             },
-
             twinkle: {
               particles: {
                 enable: true,
-                frequency: 0.05,
-                opacity: 1
-              }
-            }
+                frequency: 0.035,
+                opacity: 1,
+                color: "#ff8a92",
+              },
+            },
           },
-
-          detectRetina: true
+          detectRetina: true,
         }}
       />
     </div>
