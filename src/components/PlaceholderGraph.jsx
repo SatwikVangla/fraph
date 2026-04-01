@@ -183,7 +183,7 @@ export default function PlaceholderGraph({
     }).format(value || 0);
 
   return (
-    <div className="flex h-full w-full flex-col gap-4 p-4">
+    <div className="flex w-full min-w-0 flex-col gap-4 p-4">
       <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <GraphStat label="Accounts" value={accountCount} tone="neutral" />
         <GraphStat
@@ -216,7 +216,7 @@ export default function PlaceholderGraph({
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1.65fr_0.85fr]">
+      <div className="grid items-start gap-4 xl:grid-cols-[1.65fr_0.85fr]">
         <div className="overflow-hidden rounded-2xl border border-neutral-900 bg-[radial-gradient(circle_at_50%_50%,rgba(185,28,28,0.28),transparent_32%),linear-gradient(180deg,rgba(18,18,18,0.96),rgba(6,6,6,0.98))]">
           <div className="border-b border-neutral-900 px-5 py-4">
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-red-400">
@@ -229,7 +229,7 @@ export default function PlaceholderGraph({
           </div>
           <svg
             viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-            className="block h-[480px] w-full md:h-[520px]"
+            className="block h-[400px] w-full md:h-[460px] xl:h-[520px]"
           >
             <defs>
               <marker

@@ -13,20 +13,25 @@ from app.services.evaluation import compute_binary_classification_metrics
 from app.services.diagnostics import build_dataset_diagnostics
 from app.services.fraud_detection import get_numeric_feature_frame
 from app.services.gnn_model import (
-    tune_and_train_gnn_from_prepared,
+    build_transaction_graph_from_prepared,
+    train_gnn_from_graph,
 )
 from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
-    "epochs": 12,
-    "hidden_dim": 96,
-    "learning_rate": 0.002,
-    "dropout": 0.08,
+    "epochs": 24,
+    "hidden_dim": 192,
+    "learning_rate": 0.0013,
+    "dropout": 0.1,
     "use_class_weights": True,
-    "max_nodes": 1024,
+    "max_nodes": 1280,
     "seed_candidates": [42],
     "model_architecture": "graphsage",
+    "use_similarity_edges": True,
+    "use_party_edges": True,
+    "use_temporal_edges": True,
+    "include_account_nodes": True,
 }
 
 
@@ -192,11 +197,19 @@ def compare_baseline_models(
 
     if include_gnn_result:
         try:
-            gnn_result = tune_and_train_gnn_from_prepared(
+            graph = build_transaction_graph_from_prepared(
                 prepared=labeled,
-                dataset_name=dataset_name or "comparison",
                 train_indices=list(train_indices),
                 test_indices=list(test_indices),
+                max_nodes=GNN_COMPARE_CONFIG["max_nodes"],
+                use_similarity_edges=GNN_COMPARE_CONFIG["use_similarity_edges"],
+                use_party_edges=GNN_COMPARE_CONFIG["use_party_edges"],
+                use_temporal_edges=GNN_COMPARE_CONFIG["use_temporal_edges"],
+                include_account_nodes=GNN_COMPARE_CONFIG["include_account_nodes"],
+            )
+            gnn_result = train_gnn_from_graph(
+                graph=graph,
+                dataset_name=dataset_name or "comparison",
                 epochs=GNN_COMPARE_CONFIG["epochs"],
                 hidden_dim=GNN_COMPARE_CONFIG["hidden_dim"],
                 learning_rate=GNN_COMPARE_CONFIG["learning_rate"],
@@ -205,9 +218,24 @@ def compare_baseline_models(
                 include_raw_outputs=False,
                 use_class_weights=GNN_COMPARE_CONFIG["use_class_weights"],
                 dropout=GNN_COMPARE_CONFIG["dropout"],
-                max_nodes=GNN_COMPARE_CONFIG["max_nodes"],
-                seed_candidates=GNN_COMPARE_CONFIG["seed_candidates"],
-                forced_model_architecture=GNN_COMPARE_CONFIG["model_architecture"],
+                random_seed=GNN_COMPARE_CONFIG["seed_candidates"][0],
+                model_architecture=GNN_COMPARE_CONFIG["model_architecture"],
+            )
+            gnn_result["selected_config"] = {
+                "epochs": GNN_COMPARE_CONFIG["epochs"],
+                "hidden_dim": GNN_COMPARE_CONFIG["hidden_dim"],
+                "learning_rate": GNN_COMPARE_CONFIG["learning_rate"],
+                "dropout": GNN_COMPARE_CONFIG["dropout"],
+                "use_similarity_edges": GNN_COMPARE_CONFIG["use_similarity_edges"],
+                "use_party_edges": GNN_COMPARE_CONFIG["use_party_edges"],
+                "use_temporal_edges": GNN_COMPARE_CONFIG["use_temporal_edges"],
+                "include_account_nodes": GNN_COMPARE_CONFIG["include_account_nodes"],
+                "model_architecture": GNN_COMPARE_CONFIG["model_architecture"],
+                "selected_seed": GNN_COMPARE_CONFIG["seed_candidates"][0],
+            }
+            gnn_result["details"] = (
+                "Stable GraphSAGE comparison profile using the strongest validated "
+                "relationship-aware graph configuration for dashboard and compare flows."
             )
             gnn_result["diagnostics"] = diagnostics
             results.append(gnn_result)

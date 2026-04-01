@@ -189,8 +189,8 @@ export default function DashboardPage() {
               />
             </div>
 
-            <div className="mb-12 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
+            <div className="mb-12 grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
+              <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold">Transaction Graph</h2>
                   <p className="mt-2 text-sm text-neutral-500">
@@ -198,7 +198,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-neutral-900 bg-black/40">
+                <div className="min-w-0 overflow-hidden rounded-xl border border-neutral-900 bg-black/40">
                   <PlaceholderGraph
                     graph={analysis.graph}
                     focusTransactionId={selectedTransactionId}
@@ -221,7 +221,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+            <div className="relative z-10 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
               <div className="border-b border-neutral-800 px-6 py-5">
                 <h2 className="text-2xl font-bold">Suspicious Transactions</h2>
                 <p className="mt-2 text-sm text-neutral-500">
