@@ -215,6 +215,12 @@ export default function ComparePage() {
               Compare the relationship-aware GNN against four simpler non-graph baselines:
               KNN, Logistic Regression, Linear SVC, and Gaussian Naive Bayes.
             </p>
+            <p className="mt-2 max-w-2xl text-sm text-red-300">
+              For this fraud setting, treat <span className="font-semibold text-white">F1</span>,{" "}
+              <span className="font-semibold text-white">PR-AUC</span>, and{" "}
+              <span className="font-semibold text-white">MCC</span> as the primary metrics.
+              Accuracy alone is weak under heavy class imbalance.
+            </p>
             {datasets.length ? (
               <div className="mt-5 max-w-sm">
                 <label
@@ -344,6 +350,17 @@ export default function ComparePage() {
               </div>
             </div>
 
+            <div className="mb-8 rounded-2xl border border-red-900/60 bg-red-950/20 p-6">
+              <h2 className="text-2xl font-bold text-white">Primary Fraud Metrics</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-red-100">
+                Use <span className="font-semibold text-white">F1</span> to balance precision
+                and recall, <span className="font-semibold text-white">PR-AUC</span> to judge
+                fraud ranking quality under rare positives, and{" "}
+                <span className="font-semibold text-white">MCC</span> to measure balanced
+                classification quality even when legitimate transactions dominate.
+              </p>
+            </div>
+
             <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
               <div className="overflow-x-auto">
                 <div className="min-w-[1380px]">
@@ -352,10 +369,10 @@ export default function ComparePage() {
                     <span>Accuracy</span>
                     <span>Precision</span>
                     <span>Recall</span>
-                    <span>F1</span>
+                    <span className="text-red-300">F1</span>
                     <span>ROC AUC</span>
-                    <span>PR AUC</span>
-                    <span>MCC</span>
+                    <span className="text-red-300">PR AUC</span>
+                    <span className="text-red-300">MCC</span>
                     <span>Threshold</span>
                     <span>Confusion</span>
                     <span>Explainability</span>
@@ -364,7 +381,11 @@ export default function ComparePage() {
                   {comparison.model_results.map((result) => (
                     <div
                       key={result.model_name}
-                      className="grid grid-cols-11 gap-4 border-b border-neutral-900 px-6 py-5 text-sm text-neutral-200 last:border-b-0"
+                      className={`grid grid-cols-11 gap-4 border-b px-6 py-5 text-sm text-neutral-200 last:border-b-0 ${
+                        result.model_name === "gnn"
+                          ? "border-red-950/70 bg-red-950/10"
+                          : "border-neutral-900"
+                      }`}
                     >
                       <div>
                         <p className="font-semibold">

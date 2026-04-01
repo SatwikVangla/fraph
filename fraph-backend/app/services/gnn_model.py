@@ -312,45 +312,64 @@ def build_transaction_graph_from_prepared(
         labeled["split_group"] = "all"
 
     if max_nodes is not None and len(labeled) > max_nodes:
-        sample_fraction = max_nodes / len(labeled)
-        sampled_groups: list[pd.DataFrame] = []
+        positive_rows = labeled[labeled["label"] == 1].copy()
+        negative_rows = labeled[labeled["label"] == 0].copy()
 
-        for (_split_group, _label), group in labeled.groupby(["split_group", "label"], sort=False):
-            if group.empty:
-                continue
-            sample_size = min(
-                len(group),
-                max(1, int(round(len(group) * sample_fraction))),
-            )
-            sampled_groups.append(
-                group.sample(n=sample_size, random_state=random_state)
-            )
+        if len(positive_rows) >= max_nodes:
+            sampled_positive_groups: list[pd.DataFrame] = []
+            for _split_group, group in positive_rows.groupby("split_group", sort=False):
+                if group.empty:
+                    continue
+                sample_size = min(
+                    len(group),
+                    max(
+                        1,
+                        int(round((len(group) / max(len(positive_rows), 1)) * max_nodes)),
+                    ),
+                )
+                sampled_positive_groups.append(
+                    group.sample(n=sample_size, random_state=random_state)
+                )
+            labeled = pd.concat(sampled_positive_groups, ignore_index=True)
+            if len(labeled) > max_nodes:
+                labeled = labeled.sample(n=max_nodes, random_state=random_state)
+        else:
+            sampled_groups = [positive_rows]
+            remaining_capacity = max_nodes - len(positive_rows)
+            negative_total = max(len(negative_rows), 1)
 
-        labeled = pd.concat(sampled_groups, ignore_index=True)
-        if len(labeled) > max_nodes:
-            labeled = labeled.sample(n=max_nodes, random_state=random_state)
-        elif len(labeled) < max_nodes:
-            sampled_indices = set(labeled["original_index"].tolist())
-            remainder = prepared.loc[
-                prepared.index.isin(
-                    [index for index in prepared.index if index not in sampled_indices]
+            for _split_group, group in negative_rows.groupby("split_group", sort=False):
+                if group.empty or remaining_capacity <= 0:
+                    continue
+                sample_size = min(
+                    len(group),
+                    max(1, int(round((len(group) / negative_total) * remaining_capacity))),
                 )
-            ].dropna(subset=["label"]).copy()
-            if not remainder.empty:
-                remainder["original_index"] = remainder.index
-                remainder["label"] = remainder["label"].astype(int)
-                remainder["split_group"] = remainder["original_index"].map(
-                    lambda index: "train"
-                    if index in train_index_set
-                    else "test"
-                    if index in test_index_set
-                    else "other"
+                sampled_groups.append(
+                    group.sample(n=sample_size, random_state=random_state)
                 )
-                extra_rows = remainder.sample(
-                    n=min(max_nodes - len(labeled), len(remainder)),
+
+            labeled = pd.concat(sampled_groups, ignore_index=True)
+            if len(labeled) > max_nodes:
+                positive_sample = labeled[labeled["label"] == 1]
+                negative_sample = labeled[labeled["label"] == 0]
+                available_negative_slots = max(max_nodes - len(positive_sample), 0)
+                negative_sample = negative_sample.sample(
+                    n=min(len(negative_sample), available_negative_slots),
                     random_state=random_state,
                 )
-                labeled = pd.concat([labeled, extra_rows], ignore_index=True)
+                labeled = pd.concat([positive_sample, negative_sample], ignore_index=True)
+            elif len(labeled) < max_nodes and len(negative_rows) > 0:
+                sampled_indices = set(labeled["original_index"].tolist())
+                negative_remainder = negative_rows[
+                    ~negative_rows["original_index"].isin(sampled_indices)
+                ]
+                if not negative_remainder.empty:
+                    filler = negative_remainder.sample(
+                        n=min(max_nodes - len(labeled), len(negative_remainder)),
+                        random_state=random_state,
+                    )
+                    labeled = pd.concat([labeled, filler], ignore_index=True)
 
         labeled = labeled.sample(frac=1.0, random_state=random_state).reset_index(drop=True)
 
@@ -704,7 +723,7 @@ def train_gnn_from_graph(
         positive_rate = float(targets_tensor.float().mean().item()) if len(targets_tensor) else 0.0
         positive_count = int(targets_tensor.sum().item()) if len(targets_tensor) else 0
         if len(targets_tensor) < 20 or positive_count < 3:
-            fallback_threshold = 0.35 if positive_rate < 0.05 else 0.45
+            fallback_threshold = 0.65 if positive_rate < 0.05 else 0.5
             return fallback_threshold, 0.0
         candidate_thresholds = sorted(
             {
@@ -735,22 +754,49 @@ def train_gnn_from_graph(
             )
             predicted_positive_rate = float(predictions_np.mean()) if len(predictions_np) else 0.0
             prevalence_penalty = abs(predicted_positive_rate - positive_rate)
-            precision_floor = 0.08 if positive_rate < 0.05 else 0.22
-            precision_bonus = 0.06 if float(metrics["precision"]) >= precision_floor else -0.08
+            overshoot_penalty = max(0.0, predicted_positive_rate - max(positive_rate * 4.0, 0.12))
+            precision_floor = 0.16 if positive_rate < 0.05 else 0.22
+            precision_bonus = 0.08 if float(metrics["precision"]) >= precision_floor else -0.14
             score = (
-                float(metrics["f1_score"]) * 0.32
+                float(metrics["f1_score"]) * 0.3
                 + float(metrics["pr_auc"]) * 0.24
-                + float(metrics["recall"]) * 0.24
-                + float(metrics["precision"]) * 0.08
-                + float(metrics["mcc"]) * 0.1
+                + float(metrics["recall"]) * 0.18
+                + float(metrics["precision"]) * 0.16
+                + float(metrics["mcc"]) * 0.12
                 + precision_bonus
                 - prevalence_penalty * 0.12
+                - overshoot_penalty * 0.32
             )
             if score > best_local_score:
                 best_local_score = score
                 best_local_threshold = float(threshold)
 
         return best_local_threshold, best_local_score
+
+    def calibrate_probabilities(
+        logits_tensor: torch.Tensor,
+        targets_tensor: torch.Tensor,
+    ) -> tuple[float, float]:
+        if not bool(graph.val_mask.any().item()) or len(targets_tensor) < 20:
+            return 1.0, 0.0
+
+        positive_logits = logits_tensor[:, 1] - logits_tensor[:, 0]
+        targets = targets_tensor.float()
+        best_temperature = 1.0
+        best_bias = 0.0
+        best_loss = float("inf")
+
+        for temperature in [0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]:
+            scaled_logits = positive_logits / temperature
+            for bias in [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0]:
+                probabilities = torch.sigmoid(scaled_logits + bias)
+                loss = F.binary_cross_entropy(probabilities, targets).item()
+                if loss < best_loss:
+                    best_loss = loss
+                    best_temperature = float(temperature)
+                    best_bias = float(bias)
+
+        return best_temperature, best_bias
 
     torch.manual_seed(random_seed)
     if model_architecture == "gat":
@@ -830,15 +876,29 @@ def train_gnn_from_graph(
         model.load_state_dict(best_state)
     model.eval()
     logits = model(graph.features, graph.edge_index)
+    calibration_temperature = 1.0
+    calibration_bias = 0.0
     if bool(graph.val_mask.any().item()):
         with torch.no_grad():
-            recalibration_probabilities = torch.softmax(logits[graph.val_mask], dim=1)[:, 1]
+            calibration_temperature, calibration_bias = calibrate_probabilities(
+                logits[graph.val_mask],
+                graph.labels[graph.val_mask],
+            )
+            val_margin = (
+                (logits[graph.val_mask][:, 1] - logits[graph.val_mask][:, 0])
+                / calibration_temperature
+            ) + calibration_bias
+            recalibration_probabilities = torch.sigmoid(val_margin)
             recalibration_targets = graph.labels[graph.val_mask]
             best_threshold, _ = select_threshold(
                 recalibration_probabilities,
                 recalibration_targets,
             )
-    probabilities = torch.softmax(logits[graph.test_mask], dim=1)[:, 1]
+    test_margin = (
+        (logits[graph.test_mask][:, 1] - logits[graph.test_mask][:, 0])
+        / calibration_temperature
+    ) + calibration_bias
+    probabilities = torch.sigmoid(test_margin)
     predictions = (probabilities >= best_threshold).long()
     y_true = graph.labels[graph.test_mask]
     probabilities_np = probabilities.detach().cpu().numpy()
@@ -878,6 +938,8 @@ def train_gnn_from_graph(
         "validation_score": round(best_score, 4) if best_score != float("-inf") else None,
         "best_epoch": int(best_epoch),
         "threshold": round(best_threshold, 4),
+        "calibration_temperature": round(float(calibration_temperature), 4),
+        "calibration_bias": round(float(calibration_bias), 4),
         "explainability": {
             "top_input_features": [
                 {"feature": feature_name, "importance": round(float(score), 4)}

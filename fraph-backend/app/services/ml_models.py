@@ -19,12 +19,14 @@ from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
-    "epochs": 72,
-    "hidden_dim": 160,
+    "epochs": 12,
+    "hidden_dim": 96,
     "learning_rate": 0.002,
     "dropout": 0.08,
     "use_class_weights": True,
-    "max_nodes": 4096,
+    "max_nodes": 1024,
+    "seed_candidates": [42],
+    "model_architecture": "graphsage",
 }
 
 
@@ -204,6 +206,8 @@ def compare_baseline_models(
                 use_class_weights=GNN_COMPARE_CONFIG["use_class_weights"],
                 dropout=GNN_COMPARE_CONFIG["dropout"],
                 max_nodes=GNN_COMPARE_CONFIG["max_nodes"],
+                seed_candidates=GNN_COMPARE_CONFIG["seed_candidates"],
+                forced_model_architecture=GNN_COMPARE_CONFIG["model_architecture"],
             )
             gnn_result["diagnostics"] = diagnostics
             results.append(gnn_result)
