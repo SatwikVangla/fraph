@@ -9,6 +9,7 @@ export default function DashboardPage() {
   const [analysis, setAnalysis] = useState(null);
   const [dataset, setDataset] = useState(location.state?.dataset ?? null);
   const [datasets, setDatasets] = useState([]);
+  const [preprocessingJob, setPreprocessingJob] = useState(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,6 +37,7 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         setError("");
+        setAnalysis(null);
 
         let activeDataset = dataset;
         if (!activeDataset) {
@@ -47,6 +49,21 @@ export default function DashboardPage() {
           if (active) {
             setDataset(activeDataset);
           }
+        }
+
+        if (activeDataset.large_dataset) {
+          const jobStatus = await apiRequest(
+            `/upload/preprocessing-status/${activeDataset.id}`,
+          );
+          if (!active) {
+            return;
+          }
+          setPreprocessingJob(jobStatus);
+          if (jobStatus.status !== "completed") {
+            return;
+          }
+        } else if (active) {
+          setPreprocessingJob(null);
         }
 
         const response = await apiRequest("/fraud/detect", {
@@ -88,6 +105,46 @@ export default function DashboardPage() {
       active = false;
     };
   }, [dataset]);
+
+  useEffect(() => {
+    if (!dataset?.large_dataset || !preprocessingJob || preprocessingJob.status === "completed" || preprocessingJob.status === "failed") {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const nextJob = await apiRequest(
+          `/upload/preprocessing-status/${dataset.id}`,
+        );
+        setPreprocessingJob(nextJob);
+        if (nextJob.status === "completed") {
+          const response = await apiRequest("/fraud/detect", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              dataset_id: dataset.id,
+              threshold: 0.65,
+              limit: 8,
+            }),
+          });
+          setAnalysis(response);
+          setSelectedTransactionId(
+            response.suspicious_transactions?.[0]?.transaction_id ?? null,
+          );
+        }
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Failed to load large dataset preparation status.",
+        );
+      }
+    }, 2000);
+
+    return () => window.clearInterval(intervalId);
+  }, [dataset, preprocessingJob]);
 
   useEffect(() => {
     if (!selectedTransactionId) {
@@ -162,6 +219,29 @@ export default function DashboardPage() {
         {loading ? (
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-10 text-neutral-300">
             Running fraud analysis...
+          </div>
+        ) : null}
+
+        {!loading && dataset?.large_dataset && preprocessingJob && preprocessingJob.status !== "completed" ? (
+          <div className="mb-10 rounded-2xl border border-amber-700/60 bg-amber-950/20 p-6 text-amber-100">
+            <p className="text-sm font-bold uppercase tracking-[0.24em] text-amber-300">
+              Large Dataset Preparation
+            </p>
+            <p className="mt-3 text-sm">
+              {preprocessingJob.message}
+            </p>
+            <p className="mt-2 text-xs uppercase tracking-[0.18em] text-amber-200/80">
+              Status: {preprocessingJob.status} | Progress: {preprocessingJob.progress}%
+            </p>
+            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-black/40">
+              <div
+                className="h-full bg-amber-400 transition-all duration-300"
+                style={{ width: `${preprocessingJob.progress}%` }}
+              />
+            </div>
+            <p className="mt-4 text-sm text-amber-50/80">
+              The dashboard will load sampled graph artifacts after preprocessing completes.
+            </p>
           </div>
         ) : null}
 

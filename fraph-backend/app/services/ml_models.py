@@ -16,7 +16,7 @@ from app.services.gnn_model import (
     build_transaction_graph_from_prepared,
     train_gnn_from_graph,
 )
-from app.services.preprocessing import preprocess_dataset
+from app.services.preprocessing import preprocess_dataset, recommended_max_rows
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
@@ -106,8 +106,11 @@ def evaluate_model(
     }
 
 
-def prepare_labeled_dataset(dataset_path: str):
-    prepared, _profile = preprocess_dataset(dataset_path)
+def prepare_labeled_dataset(dataset_path: str, purpose: str = "training"):
+    prepared, _profile = preprocess_dataset(
+        dataset_path,
+        max_rows=recommended_max_rows(dataset_path, purpose=purpose),
+    )
     if "label" not in prepared.columns or prepared["label"].dropna().empty:
         raise ValueError("Model training requires a labeled fraud column.")
 
@@ -130,7 +133,10 @@ def compare_baseline_models(
     requested_models: list[str] | None = None,
 ) -> list[dict[str, object]]:
     try:
-        labeled, features, labels, diagnostics = prepare_labeled_dataset(dataset_path)
+        labeled, features, labels, diagnostics = prepare_labeled_dataset(
+            dataset_path,
+            purpose="compare",
+        )
     except ValueError as exc:
         return [
             {
@@ -266,7 +272,10 @@ def train_and_persist_models(
     dataset_name: str,
     requested_models: list[str] | None = None,
 ) -> list[dict[str, object]]:
-    labeled, features, labels, diagnostics = prepare_labeled_dataset(dataset_path)
+    labeled, features, labels, diagnostics = prepare_labeled_dataset(
+        dataset_path,
+        purpose="training",
+    )
 
     x_train, x_test, y_train, y_test = train_test_split(
         features,

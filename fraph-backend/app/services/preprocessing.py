@@ -4,6 +4,12 @@ from pathlib import Path
 
 import pandas as pd
 
+LARGE_DATASET_BYTES = 100 * 1024 * 1024
+MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
+PROFILE_SAMPLE_ROWS = 2000
+INTERACTIVE_MAX_ROWS = 50_000
+TRAINING_MAX_ROWS = 120_000
+
 
 @dataclass
 class DatasetProfile:
@@ -19,6 +25,34 @@ class DatasetProfile:
     newbalance_orig_column: str | None
     oldbalance_dest_column: str | None
     newbalance_dest_column: str | None
+
+
+def dataset_file_size_bytes(dataset_path: str | Path) -> int:
+    return int(Path(dataset_path).stat().st_size)
+
+
+def is_large_dataset(dataset_path: str | Path) -> bool:
+    return dataset_file_size_bytes(dataset_path) >= LARGE_DATASET_BYTES
+
+
+def estimated_csv_row_count(dataset_path: str | Path) -> int:
+    path = Path(dataset_path)
+    try:
+        with path.open("rb") as handle:
+            line_count = sum(chunk.count(b"\n") for chunk in iter(lambda: handle.read(1024 * 1024), b""))
+        return max(int(line_count - 1), 0)
+    except OSError:
+        return 0
+
+
+def recommended_max_rows(dataset_path: str | Path, purpose: str = "interactive") -> int | None:
+    if not is_large_dataset(dataset_path):
+        return None
+    if purpose == "training":
+        return TRAINING_MAX_ROWS
+    if purpose == "benchmark":
+        return TRAINING_MAX_ROWS
+    return INTERACTIVE_MAX_ROWS
 
 
 COLUMN_ALIASES = {
@@ -316,8 +350,11 @@ def _numeric_series(
     return pd.to_numeric(dataframe[column_name], errors="coerce").fillna(default_value)
 
 
-def load_raw_dataset(dataset_path: str | Path) -> pd.DataFrame:
-    dataframe = pd.read_csv(dataset_path, sep=None, engine="python")
+def load_raw_dataset(
+    dataset_path: str | Path,
+    nrows: int | None = None,
+) -> pd.DataFrame:
+    dataframe = pd.read_csv(dataset_path, sep=None, engine="python", nrows=nrows)
     dataframe = _normalize_column_names(dataframe)
     if dataframe.empty:
         raise ValueError("Dataset is empty.")
@@ -325,7 +362,8 @@ def load_raw_dataset(dataset_path: str | Path) -> pd.DataFrame:
 
 
 def profile_dataset(dataset_path: str | Path) -> DatasetProfile:
-    dataframe = load_raw_dataset(dataset_path)
+    sample_row_limit = PROFILE_SAMPLE_ROWS if is_large_dataset(dataset_path) else None
+    dataframe = load_raw_dataset(dataset_path, nrows=sample_row_limit)
     columns = list(dataframe.columns)
     overrides = load_mapping_overrides(dataset_path)
     amount_column = _find_column(columns, COLUMN_ALIASES["amount"])
@@ -400,7 +438,7 @@ def profile_dataset(dataset_path: str | Path) -> DatasetProfile:
     step_column = overrides.get("step_column", step_column)
 
     return DatasetProfile(
-        row_count=len(dataframe),
+        row_count=estimated_csv_row_count(dataset_path) if sample_row_limit else len(dataframe),
         columns=columns,
         amount_column=amount_column,
         sender_column=sender_column,
@@ -415,8 +453,11 @@ def profile_dataset(dataset_path: str | Path) -> DatasetProfile:
     )
 
 
-def preprocess_dataset(dataset_path: str | Path) -> tuple[pd.DataFrame, DatasetProfile]:
-    dataframe = load_raw_dataset(dataset_path)
+def preprocess_dataset(
+    dataset_path: str | Path,
+    max_rows: int | None = None,
+) -> tuple[pd.DataFrame, DatasetProfile]:
+    dataframe = load_raw_dataset(dataset_path, nrows=max_rows)
     profile = profile_dataset(dataset_path)
 
     transaction_id_column = _find_column(

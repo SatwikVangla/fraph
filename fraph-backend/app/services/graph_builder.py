@@ -1,7 +1,7 @@
 import networkx as nx
 import pandas as pd
 
-from app.services.preprocessing import preprocess_dataset
+from app.services.preprocessing import preprocess_dataset, recommended_max_rows
 
 
 def build_graph(
@@ -9,7 +9,10 @@ def build_graph(
     limit: int = 10,
     suspicious_transaction_ids: list[str] | None = None,
 ) -> dict[str, object]:
-    dataframe, _profile = preprocess_dataset(dataset_path)
+    dataframe, _profile = preprocess_dataset(
+        dataset_path,
+        max_rows=recommended_max_rows(dataset_path, purpose="interactive"),
+    )
     dataframe = dataframe.copy()
     dataframe["transaction_id"] = dataframe["transaction_id"].astype(str)
     if "label" in dataframe.columns:

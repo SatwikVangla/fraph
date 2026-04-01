@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
-from app.services.preprocessing import preprocess_dataset
+from app.services.preprocessing import preprocess_dataset, recommended_max_rows
 
 
 def build_feature_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -166,7 +166,10 @@ def run_fraud_detection(
     threshold: float = 0.65,
     limit: int = 10,
 ) -> dict[str, object]:
-    prepared, profile = preprocess_dataset(dataset_path)
+    prepared, profile = preprocess_dataset(
+        dataset_path,
+        max_rows=recommended_max_rows(dataset_path, purpose="interactive"),
+    )
     features = build_feature_frame(prepared)
     numeric_features = get_numeric_feature_frame(prepared)
 

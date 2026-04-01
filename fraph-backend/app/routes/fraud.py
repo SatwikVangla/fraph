@@ -5,8 +5,13 @@ from app.database.db import get_db
 from app.database.models import DatasetRecord
 from app.routes.upload import _dataset_to_response
 from app.schemas.schema import FraudAnalysisResponse, FraudCheckRequest
+from app.services.dataset_preparation import (
+    load_prepared_analysis_artifact,
+    read_preparation_status,
+)
 from app.services.fraud_detection import run_fraud_detection
 from app.services.graph_builder import build_graph
+from app.services.preprocessing import is_large_dataset
 
 router = APIRouter(prefix="/fraud", tags=["fraud"])
 
@@ -36,6 +41,23 @@ def detect_fraud(
     db: Session = Depends(get_db),
 ) -> FraudAnalysisResponse:
     record = _resolve_dataset(payload, db)
+    if is_large_dataset(record.stored_path):
+        preparation_status = read_preparation_status(record.stored_path)
+        artifact_payload = load_prepared_analysis_artifact(record.stored_path)
+        if artifact_payload is None or preparation_status.get("status") != "completed":
+            raise HTTPException(
+                status_code=409,
+                detail="Large dataset preprocessing is still running. Wait for the preparation job to complete.",
+            )
+
+        return FraudAnalysisResponse(
+            status="completed",
+            dataset=_dataset_to_response(record),
+            summary=artifact_payload["summary"],
+            graph=artifact_payload["graph"],
+            suspicious_transactions=artifact_payload["suspicious_transactions"],
+        )
+
     analysis = run_fraud_detection(
         dataset_path=record.stored_path,
         threshold=payload.threshold,

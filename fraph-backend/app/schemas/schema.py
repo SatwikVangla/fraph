@@ -58,6 +58,10 @@ class DatasetResponse(BaseModel):
     original_filename: str
     stored_path: str
     row_count: int
+    file_size_bytes: int | None = None
+    large_dataset: bool = False
+    preprocessing_status: str | None = None
+    preprocessing_job_id: str | None = None
     amount_column: str | None = None
     sender_column: str | None = None
     receiver_column: str | None = None

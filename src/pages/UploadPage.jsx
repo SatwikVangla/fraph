@@ -4,6 +4,8 @@ import { useState } from "react";
 import ParticleBackground from "../components/ParticleBackground";
 import { apiRequest } from "../utils/api";
 
+const LARGE_DATASET_BYTES = 100 * 1024 * 1024;
+
 export default function UploadPage() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
@@ -18,6 +20,8 @@ export default function UploadPage() {
   });
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
+  const selectedFileSize = file?.size ?? 0;
+  const selectedFileIsLarge = selectedFileSize >= LARGE_DATASET_BYTES;
 
   const validationSummary = preview
     ? buildValidationSummary({
@@ -201,7 +205,20 @@ export default function UploadPage() {
             <p className="min-h-6 text-sm text-neutral-400">
               {file ? `Selected: ${file.name}` : "No dataset selected"}
             </p>
+            {file ? (
+              <p className="mt-2 text-xs uppercase tracking-[0.18em] text-neutral-500">
+                Size: {formatFileSize(selectedFileSize)}
+              </p>
+            ) : null}
           </div>
+
+          {selectedFileIsLarge ? (
+            <div className="mt-6 rounded-2xl border border-amber-700/60 bg-amber-950/20 p-5 text-sm text-amber-100">
+              Large CSV detected. Upload will stream safely, but the dashboard and compare
+              flow will use sampled rows to keep the app responsive. Use async training jobs
+              for large datasets.
+            </div>
+          ) : null}
 
           {preview ? (
             <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-950/80 p-6">
@@ -405,6 +422,20 @@ export default function UploadPage() {
       </div>
     </div>
   );
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 function MappingField({ label, value, options, onChange, optional = false }) {
