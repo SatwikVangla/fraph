@@ -198,7 +198,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="h-[420px] rounded-xl border border-neutral-900 bg-black/40">
+                <div className="overflow-hidden rounded-xl border border-neutral-900 bg-black/40">
                   <PlaceholderGraph
                     graph={analysis.graph}
                     focusTransactionId={selectedTransactionId}

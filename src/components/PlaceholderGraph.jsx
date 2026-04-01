@@ -229,7 +229,7 @@ export default function PlaceholderGraph({
           </div>
           <svg
             viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-            className="h-full min-h-[440px] w-full"
+            className="block h-[480px] w-full md:h-[520px]"
           >
             <defs>
               <marker

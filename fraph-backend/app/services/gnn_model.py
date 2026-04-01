@@ -1058,6 +1058,10 @@ def tune_and_train_gnn_from_prepared(
             use_temporal_edges=final_graph_key[2],
             include_account_nodes=final_graph_key[3],
         )
+    final_training_epochs = max(
+        int(epochs),
+        min(int(best_trial_config.get("epochs", epochs)), 24),
+    )
     selected_seeds = seed_candidates or [42, 52, 62]
     best_seed_result: dict[str, object] | None = None
     best_seed = selected_seeds[0]
@@ -1066,7 +1070,7 @@ def tune_and_train_gnn_from_prepared(
         seed_result = train_gnn_from_graph(
             graph=final_graph,
             dataset_name=dataset_name,
-            epochs=epochs,
+            epochs=final_training_epochs,
             hidden_dim=int(best_trial_config["hidden_dim"]),
             learning_rate=float(best_trial_config["learning_rate"]),
             artifact_name=artifact_name,
@@ -1091,7 +1095,7 @@ def tune_and_train_gnn_from_prepared(
         best_seed_result = train_gnn_from_graph(
             graph=final_graph,
             dataset_name=dataset_name,
-            epochs=epochs,
+            epochs=final_training_epochs,
             hidden_dim=int(best_trial_config["hidden_dim"]),
             learning_rate=float(best_trial_config["learning_rate"]),
             artifact_name=artifact_name,
@@ -1108,7 +1112,7 @@ def tune_and_train_gnn_from_prepared(
         persisted_result = train_gnn_from_graph(
             graph=final_graph,
             dataset_name=dataset_name,
-            epochs=epochs,
+            epochs=final_training_epochs,
             hidden_dim=int(best_trial_config["hidden_dim"]),
             learning_rate=float(best_trial_config["learning_rate"]),
             artifact_name=artifact_name,
@@ -1124,7 +1128,7 @@ def tune_and_train_gnn_from_prepared(
 
     final_result["selected_config"] = {
         **best_trial_config,
-        "epochs": epochs,
+        "epochs": final_training_epochs,
         "selected_seed": best_seed,
         "candidate_seeds": selected_seeds,
     }
