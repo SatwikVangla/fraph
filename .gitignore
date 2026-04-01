@@ -20,6 +20,7 @@ dist-ssr
 fraph-backend/.venv/
 fraph-backend/fraph.db
 fraph-backend/datasets/*.csv
+fraph-backend/datasets/*.mapping.json
 !fraph-backend/datasets/.gitkeep
 fraph-backend/trained_models/*
 !fraph-backend/trained_models/.gitkeep
