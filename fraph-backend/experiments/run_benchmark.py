@@ -3,11 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 import warnings
 from datetime import UTC, datetime
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/fraph-matplotlib")
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(Path(tempfile.gettempdir()) / "fraph-matplotlib"),
+)
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -38,8 +42,10 @@ DEFAULT_MODELS = [
     "knn",
     "logistic_regression",
     "linear_svc",
-    "random_forest",
+    "gaussian_nb",
     "gnn",
+    "gnn_graphsage",
+    "gnn_gat",
 ]
 
 
@@ -89,9 +95,9 @@ def evaluate_classical_model(
     x_test: pd.DataFrame,
     y_test: pd.Series,
 ) -> tuple[dict[str, object], list[float], list[int], list[int]]:
-    model = get_model_specs()[model_name]
+    model = get_model_specs(y_train)[model_name]
     model.fit(x_train, y_train)
-    metrics = evaluate_model(model_name, model, x_test, y_test)
+    metrics = evaluate_model(model_name, model, x_test, y_test, feature_names=list(x_train.columns))
     probabilities = list(get_model_probabilities(model, x_test))
     predictions = list(model.predict(x_test))
     return metrics, probabilities, predictions, list(y_test)
@@ -110,6 +116,7 @@ def evaluate_gnn_model(
     use_similarity_edges: bool,
     use_party_edges: bool,
     use_class_weights: bool,
+    model_architecture: str | None = None,
 ) -> tuple[dict[str, object], list[float], list[int], list[int]]:
     result = tune_and_train_gnn_from_prepared(
         prepared=prepared,
@@ -124,6 +131,8 @@ def evaluate_gnn_model(
         include_raw_outputs=True,
         use_class_weights=use_class_weights,
         dropout=dropout,
+        seed_candidates=[42, 52, 62],
+        forced_model_architecture=model_architecture,
     )
     raw_outputs = result.pop("raw_outputs")
     return result, raw_outputs["probabilities"], raw_outputs["predictions"], raw_outputs["y_true"]
@@ -231,7 +240,7 @@ def run_benchmark(
     dataset_path = Path(dataset).resolve()
     output_root, plots_dir = build_output_paths(output_dir, dataset_path, suffix=output_suffix)
 
-    labeled, features, labels = prepare_labeled_dataset(str(dataset_path))
+    labeled, features, labels, diagnostics = prepare_labeled_dataset(str(dataset_path))
     prepared = labeled.reset_index(drop=True).copy()
     labels = labels.reset_index(drop=True)
     model_list = models or DEFAULT_MODELS
@@ -256,7 +265,12 @@ def run_benchmark(
         fold_name = f"fold-{fold_index}"
 
         for model_name in model_list:
-            if model_name == "gnn":
+            if model_name in {"gnn", "gnn_graphsage", "gnn_gat"}:
+                architecture = None
+                if model_name == "gnn_graphsage":
+                    architecture = "graphsage"
+                elif model_name == "gnn_gat":
+                    architecture = "gat"
                 result, probabilities, predictions, y_true = evaluate_gnn_model(
                     prepared=prepared,
                     train_indices=list(train_idx),
@@ -270,6 +284,7 @@ def run_benchmark(
                     use_similarity_edges=gnn_use_similarity_edges,
                     use_party_edges=gnn_use_party_edges,
                     use_class_weights=gnn_use_class_weights,
+                    model_architecture=architecture,
                 )
             else:
                 result, probabilities, predictions, y_true = evaluate_classical_model(
@@ -283,7 +298,7 @@ def run_benchmark(
             fold_rows.append(
                 {
                     "fold": fold_index,
-                    "model_name": model_name,
+                    "model_name": result.get("model_name", model_name),
                     "accuracy": result["accuracy"],
                     "precision": result["precision"],
                     "recall": result["recall"],
@@ -355,6 +370,7 @@ def run_benchmark(
         "gnn_use_similarity_edges": gnn_use_similarity_edges,
         "gnn_use_party_edges": gnn_use_party_edges,
         "gnn_use_class_weights": gnn_use_class_weights,
+        "diagnostics": diagnostics,
     }
     (output_root / "run_config.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     return {

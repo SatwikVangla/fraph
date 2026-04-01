@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database.db import init_db
-from app.routes import compare_router, fraud_router, training_router, upload_router
+from app.routes import benchmark_router, compare_router, fraud_router, training_router, upload_router
 from app.utils.helpers import ensure_runtime_directories
 
 
@@ -30,6 +30,7 @@ app.include_router(upload_router)
 app.include_router(fraud_router)
 app.include_router(compare_router)
 app.include_router(training_router)
+app.include_router(benchmark_router)
 
 
 @app.get("/")

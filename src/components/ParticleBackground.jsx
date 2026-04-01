@@ -3,111 +3,110 @@ import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 
 export default function ParticleBackground() {
-  const [init, setInit] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     initParticlesEngine(async (engine) => {
       await loadSlim(engine);
     }).then(() => {
-      setInit(true);
+      if (!cancelled) {
+        setReady(true);
+      }
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (!init) {
+  if (!ready) {
     return null;
   }
 
   return (
-    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
-      <Particles
-        id="fraud-network"
-        style={{ position: "absolute", inset: 0 }}
-        options={{
-          fullScreen: { enable: false },
-          background: { color: "transparent" },
-          fpsLimit: 60,
-          interactivity: {
-            events: {
-              onHover: {
-                enable: true,
-                mode: "grab",
-              },
-              resize: {
-                enable: true,
-              },
+    <Particles
+      id="homepage-particles"
+      className="particle-canvas"
+      options={{
+        fullScreen: { enable: false },
+        background: { color: "transparent" },
+        fpsLimit: 60,
+        interactivity: {
+          events: {
+            onHover: {
+              enable: true,
+              mode: "grab",
             },
-            modes: {
-              grab: {
-                distance: 180,
-                links: {
-                  opacity: 0.35,
-                },
+            resize: {
+              enable: true,
+            },
+          },
+          modes: {
+            grab: {
+              distance: 180,
+              links: {
+                opacity: 0.45,
               },
             },
           },
-          particles: {
-            number: {
-              density: {
-                enable: true,
-                area: 900,
-              },
-              value: 120,
-            },
-            color: {
-              value: ["#671019", "#8a1018", "#d61f2c", "#ff4d5a"],
-            },
-            opacity: {
-              value: { min: 0.18, max: 0.8 },
-            },
-            shape: {
-              type: "circle",
-            },
-            size: {
-              value: { min: 1, max: 4.5 },
-            },
-            links: {
+        },
+        particles: {
+          number: {
+            density: {
               enable: true,
-              color: "#8a1018",
-              distance: 160,
-              opacity: 0.22,
-              width: 1,
-              triangles: {
-                enable: false,
-              },
+              area: 900,
             },
-            move: {
+            value: 95,
+          },
+          color: {
+            value: ["#ff2b3a", "#ff5e68", "#9f1018", "#5b070c"],
+          },
+          links: {
+            enable: true,
+            color: "#b9131d",
+            distance: 145,
+            opacity: 0.24,
+            width: 1,
+          },
+          move: {
+            attract: {
               enable: true,
-              speed: { min: 0.18, max: 0.6 },
-              direction: "none",
-              random: true,
-              straight: false,
-              outModes: {
-                default: "out",
-              },
-              attract: {
-                enable: true,
-                distance: 180,
-                rotate: {
-                  x: 600,
-                  y: 1200,
-                },
-              },
-              trail: {
-                enable: false,
+              rotate: {
+                x: 1000,
+                y: 1400,
               },
             },
-            twinkle: {
-              particles: {
-                enable: true,
-                frequency: 0.035,
-                opacity: 1,
-                color: "#ff8a92",
-              },
+            direction: "none",
+            enable: true,
+            outModes: {
+              default: "bounce",
+            },
+            random: true,
+            speed: { min: 0.2, max: 0.65 },
+            straight: false,
+          },
+          opacity: {
+            value: { min: 0.18, max: 0.7 },
+          },
+          shape: {
+            type: "circle",
+          },
+          size: {
+            value: { min: 1, max: 3.6 },
+          },
+          twinkle: {
+            particles: {
+              enable: true,
+              color: "#ff9097",
+              frequency: 0.02,
+              opacity: 1,
             },
           },
-          detectRetina: true,
-        }}
-      />
-    </div>
+        },
+        detectRetina: true,
+      }}
+    />
   );
 }

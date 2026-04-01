@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import PlaceholderGraph from "../components/PlaceholderGraph";
@@ -9,8 +9,10 @@ export default function DashboardPage() {
   const [analysis, setAnalysis] = useState(null);
   const [dataset, setDataset] = useState(location.state?.dataset ?? null);
   const [datasets, setDatasets] = useState([]);
+  const [selectedTransactionId, setSelectedTransactionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const transactionRowRefs = useRef(new Map());
 
   useEffect(() => {
     let active = true;
@@ -61,6 +63,9 @@ export default function DashboardPage() {
 
         if (active) {
           setAnalysis(response);
+          setSelectedTransactionId(
+            response.suspicious_transactions?.[0]?.transaction_id ?? null,
+          );
         }
       } catch (requestError) {
         if (active) {
@@ -84,19 +89,33 @@ export default function DashboardPage() {
     };
   }, [dataset]);
 
+  useEffect(() => {
+    if (!selectedTransactionId) {
+      return;
+    }
+
+    const row = transactionRowRefs.current.get(selectedTransactionId);
+    row?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedTransactionId]);
+
   return (
     <div className="min-h-screen bg-black px-6 py-10 text-white md:px-12">
       <div className="mx-auto max-w-7xl">
         <div className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="mb-3 text-sm uppercase tracking-[0.35em] text-red-500">
-              Live Fraud Analysis
+              Live Graph Fraud Analysis
             </p>
             <h1 className="text-4xl md:text-5xl font-black tracking-wide">
               Fraud Intelligence Dashboard
             </h1>
             <p className="mt-3 text-neutral-400">
               Dataset: {dataset?.name ?? "--"}
+            </p>
+            <p className="mt-2 max-w-2xl text-sm text-neutral-500">
+              Analyze suspicious flows, inspect transaction relationships, and compare the
+              relationship-aware GNN against KNN, Logistic Regression, Linear SVC, and
+              Gaussian Naive Bayes.
             </p>
             {datasets.length ? (
               <div className="mt-5 max-w-sm">
@@ -135,7 +154,7 @@ export default function DashboardPage() {
               state={{ dataset: analysis.dataset }}
               className="inline-flex w-fit items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600"
             >
-              Open Comparison Page
+              Open GNN Comparison
             </Link>
           ) : null}
         </div>
@@ -180,7 +199,11 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="h-[420px] rounded-xl border border-neutral-900 bg-black/40">
-                  <PlaceholderGraph graph={analysis.graph} />
+                  <PlaceholderGraph
+                    graph={analysis.graph}
+                    focusTransactionId={selectedTransactionId}
+                    onTransactionSelect={setSelectedTransactionId}
+                  />
                 </div>
               </div>
 
@@ -201,6 +224,9 @@ export default function DashboardPage() {
             <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
               <div className="border-b border-neutral-800 px-6 py-5">
                 <h2 className="text-2xl font-bold">Suspicious Transactions</h2>
+                <p className="mt-2 text-sm text-neutral-500">
+                  Select a transaction to focus its sender-to-receiver path in the graph.
+                </p>
               </div>
 
               <div className="overflow-x-auto">
@@ -218,7 +244,19 @@ export default function DashboardPage() {
                     {analysis.suspicious_transactions.map((transaction) => (
                       <tr
                         key={transaction.transaction_id}
-                        className="border-b border-neutral-900 last:border-b-0"
+                        ref={(element) => {
+                          if (!element) {
+                            transactionRowRefs.current.delete(transaction.transaction_id);
+                            return;
+                          }
+                          transactionRowRefs.current.set(transaction.transaction_id, element);
+                        }}
+                        onClick={() => setSelectedTransactionId(transaction.transaction_id)}
+                        className={`cursor-pointer border-b border-neutral-900 transition last:border-b-0 ${
+                          selectedTransactionId === transaction.transaction_id
+                            ? "bg-red-950/30"
+                            : "hover:bg-white/5"
+                        }`}
                       >
                         <td className="px-6 py-4 font-medium">
                           {transaction.transaction_id}

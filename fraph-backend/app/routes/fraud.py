@@ -41,7 +41,13 @@ def detect_fraud(
         threshold=payload.threshold,
         limit=payload.limit,
     )
-    graph = build_graph(record.stored_path, limit=payload.limit)
+    graph = build_graph(
+        record.stored_path,
+        limit=payload.limit,
+        suspicious_transaction_ids=[
+            str(item["transaction_id"]) for item in analysis["suspicious_transactions"]
+        ],
+    )
 
     return FraudAnalysisResponse(
         status="completed",

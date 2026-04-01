@@ -1,52 +1,53 @@
 import joblib
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
 from app.services.evaluation import compute_binary_classification_metrics
+from app.services.diagnostics import build_dataset_diagnostics
 from app.services.fraud_detection import get_numeric_feature_frame
 from app.services.gnn_model import (
-    quick_train_gnn_from_prepared,
     tune_and_train_gnn_from_prepared,
 )
 from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
 
 GNN_COMPARE_CONFIG = {
-    "epochs": 12,
-    "hidden_dim": 48,
-    "learning_rate": 0.004,
-    "dropout": 0.2,
-    "use_similarity_edges": False,
-    "use_party_edges": True,
+    "epochs": 72,
+    "hidden_dim": 160,
+    "learning_rate": 0.002,
+    "dropout": 0.08,
     "use_class_weights": True,
-    "include_account_nodes": True,
-    "max_nodes": 2048,
+    "max_nodes": 4096,
 }
 
 
-def get_model_specs() -> dict[str, object]:
+def build_linear_svc_model(labels: pd.Series) -> object:
+    class_counts = labels.value_counts()
+    min_class_count = int(class_counts.min()) if not class_counts.empty else 2
+    calibration_folds = max(2, min(3, min_class_count))
+    return CalibratedClassifierCV(
+        make_pipeline(StandardScaler(), LinearSVC(dual="auto", max_iter=5000)),
+        cv=calibration_folds,
+    )
+
+
+def get_model_specs(labels: pd.Series | None = None) -> dict[str, object]:
+    fallback_labels = pd.Series([0, 1]) if labels is None else labels
     return {
         "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=7)),
         "logistic_regression": make_pipeline(
             StandardScaler(),
-            LogisticRegression(max_iter=1000),
+            LogisticRegression(max_iter=1500, class_weight="balanced"),
         ),
-        "linear_svc": CalibratedClassifierCV(
-            make_pipeline(StandardScaler(), LinearSVC(dual="auto", max_iter=5000)),
-            cv=3,
-        ),
-        "random_forest": RandomForestClassifier(
-            n_estimators=200,
-            random_state=42,
-            class_weight="balanced",
-        ),
+        "linear_svc": build_linear_svc_model(fallback_labels),
+        "gaussian_nb": make_pipeline(StandardScaler(), GaussianNB()),
     }
 
 
@@ -70,6 +71,7 @@ def evaluate_model(
     model,
     x_test,
     y_test,
+    feature_names: list[str] | None = None,
 ) -> dict[str, object]:
     predictions = model.predict(x_test)
     probabilities = get_model_probabilities(model, x_test)
@@ -78,9 +80,20 @@ def evaluate_model(
         probabilities=probabilities,
         predictions=predictions,
     )
+    explainability: dict[str, object] = {}
+    if hasattr(model, "feature_importances_") and feature_names:
+        explainability["top_input_features"] = [
+            {"feature": name, "importance": round(float(score), 4)}
+            for name, score in sorted(
+                zip(feature_names, model.feature_importances_),
+                key=lambda item: item[1],
+                reverse=True,
+            )[:10]
+        ]
     return {
         "model_name": model_name,
         **metrics,
+        "explainability": explainability,
         "status": "completed",
         "details": "Model trained on engineered transaction features.",
     }
@@ -100,7 +113,8 @@ def prepare_labeled_dataset(dataset_path: str):
 
     features = get_numeric_feature_frame(labeled)
     labels = labeled["label"].astype(int)
-    return labeled, features, labels
+    diagnostics = build_dataset_diagnostics(labeled)
+    return labeled, features, labels, diagnostics
 
 
 def compare_baseline_models(
@@ -109,7 +123,7 @@ def compare_baseline_models(
     requested_models: list[str] | None = None,
 ) -> list[dict[str, object]]:
     try:
-        labeled, features, labels = prepare_labeled_dataset(dataset_path)
+        labeled, features, labels, diagnostics = prepare_labeled_dataset(dataset_path)
     except ValueError as exc:
         return [
             {
@@ -131,16 +145,35 @@ def compare_baseline_models(
     y_train = labels.loc[train_indices]
     y_test = labels.loc[test_indices]
 
-    requested = set(requested_models or get_model_specs().keys())
-    unsupported_models = sorted(requested - set(get_model_specs().keys()))
+    model_specs = get_model_specs(labels)
+    requested = set(requested_models or model_specs.keys())
+    unsupported_models = sorted(requested - set(model_specs.keys()))
     results: list[dict[str, object]] = []
 
-    for model_name, model in get_model_specs().items():
+    for model_name, model in model_specs.items():
         if model_name not in requested:
             continue
 
-        model.fit(x_train, y_train)
-        results.append(evaluate_model(model_name, model, x_test, y_test))
+        try:
+            model.fit(x_train, y_train)
+            metrics = evaluate_model(
+                model_name,
+                model,
+                x_test,
+                y_test,
+                feature_names=list(features.columns),
+            )
+            metrics["diagnostics"] = diagnostics
+            results.append(metrics)
+        except Exception as exc:
+            results.append(
+                {
+                    "model_name": model_name,
+                    "status": "failed",
+                    "diagnostics": diagnostics,
+                    "details": f"{model_name} training failed: {exc}",
+                }
+            )
 
     include_gnn_result = not requested_models or "gnn" in requested
     for unsupported_model in unsupported_models:
@@ -157,7 +190,7 @@ def compare_baseline_models(
 
     if include_gnn_result:
         try:
-            gnn_result = quick_train_gnn_from_prepared(
+            gnn_result = tune_and_train_gnn_from_prepared(
                 prepared=labeled,
                 dataset_name=dataset_name or "comparison",
                 train_indices=list(train_indices),
@@ -170,18 +203,26 @@ def compare_baseline_models(
                 include_raw_outputs=False,
                 use_class_weights=GNN_COMPARE_CONFIG["use_class_weights"],
                 dropout=GNN_COMPARE_CONFIG["dropout"],
-                use_similarity_edges=GNN_COMPARE_CONFIG["use_similarity_edges"],
-                use_party_edges=GNN_COMPARE_CONFIG["use_party_edges"],
-                include_account_nodes=GNN_COMPARE_CONFIG["include_account_nodes"],
                 max_nodes=GNN_COMPARE_CONFIG["max_nodes"],
             )
+            gnn_result["diagnostics"] = diagnostics
             results.append(gnn_result)
         except ValueError as exc:
             results.append(
                 {
                     "model_name": "gnn",
                     "status": "skipped",
+                    "diagnostics": diagnostics,
                     "details": str(exc),
+                }
+            )
+        except Exception as exc:
+            results.append(
+                {
+                    "model_name": "gnn",
+                    "status": "failed",
+                    "diagnostics": diagnostics,
+                    "details": f"gnn comparison failed: {exc}",
                 }
             )
 
@@ -193,7 +234,7 @@ def train_and_persist_models(
     dataset_name: str,
     requested_models: list[str] | None = None,
 ) -> list[dict[str, object]]:
-    labeled, features, labels = prepare_labeled_dataset(dataset_path)
+    labeled, features, labels, diagnostics = prepare_labeled_dataset(dataset_path)
 
     x_train, x_test, y_train, y_test = train_test_split(
         features,
@@ -203,29 +244,48 @@ def train_and_persist_models(
         stratify=labels,
     )
 
-    requested = set(requested_models or get_model_specs().keys())
+    model_specs = get_model_specs(labels)
+    requested = set(requested_models or model_specs.keys())
     results: list[dict[str, object]] = []
 
-    for model_name, model in get_model_specs().items():
+    for model_name, model in model_specs.items():
         if model_name not in requested:
             continue
 
-        model.fit(x_train, y_train)
-        artifact_path = build_model_storage_path(dataset_name, model_name, ".joblib")
-        joblib.dump(
-            {
-                "model": model,
-                "feature_columns": list(features.columns),
-                "row_count": int(len(labeled)),
-            },
-            artifact_path,
-        )
+        try:
+            model.fit(x_train, y_train)
+            artifact_path = build_model_storage_path(dataset_name, model_name, ".joblib")
+            joblib.dump(
+                {
+                    "model": model,
+                    "feature_columns": list(features.columns),
+                    "row_count": int(len(labeled)),
+                },
+                artifact_path,
+            )
 
-        metrics = evaluate_model(model_name, model, x_test, y_test)
-        metrics["artifact_path"] = str(artifact_path)
-        metrics["details"] = (
-            "Model trained and persisted on engineered transaction features."
-        )
-        results.append(metrics)
+            metrics = evaluate_model(
+                model_name,
+                model,
+                x_test,
+                y_test,
+                feature_names=list(features.columns),
+            )
+            metrics["artifact_path"] = str(artifact_path)
+            metrics["diagnostics"] = diagnostics
+            metrics["details"] = (
+                "Model trained and persisted on engineered transaction features."
+            )
+            results.append(metrics)
+        except Exception as exc:
+            results.append(
+                {
+                    "model_name": model_name,
+                    "status": "failed",
+                    "artifact_path": None,
+                    "diagnostics": diagnostics,
+                    "details": f"{model_name} persistence failed: {exc}",
+                }
+            )
 
     return results

@@ -1,12 +1,12 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database.db import get_db
 from app.database.models import DatasetRecord
 from app.schemas.schema import DatasetResponse, UploadDatasetResponse
-from app.services.preprocessing import profile_dataset
+from app.services.preprocessing import profile_dataset, save_mapping_overrides
 from app.utils.helpers import build_dataset_storage_path, ensure_runtime_directories, slugify_name
 
 router = APIRouter(prefix="/upload", tags=["upload"])
@@ -36,6 +36,12 @@ def list_datasets(db: Session = Depends(get_db)) -> list[DatasetResponse]:
 @router.post("/", response_model=UploadDatasetResponse)
 async def upload_dataset(
     file: UploadFile = File(...),
+    amount_column: str | None = Form(default=None),
+    sender_column: str | None = Form(default=None),
+    receiver_column: str | None = Form(default=None),
+    label_column: str | None = Form(default=None),
+    transaction_type_column: str | None = Form(default=None),
+    step_column: str | None = Form(default=None),
     db: Session = Depends(get_db),
 ) -> UploadDatasetResponse:
     if not file.filename:
@@ -52,9 +58,20 @@ async def upload_dataset(
     stored_path.write_bytes(content)
 
     try:
+        mapping_overrides = {
+            "amount_column": amount_column,
+            "sender_column": sender_column,
+            "receiver_column": receiver_column,
+            "label_column": label_column,
+            "transaction_type_column": transaction_type_column,
+            "step_column": step_column,
+        }
+        if any(value for value in mapping_overrides.values()):
+            save_mapping_overrides(stored_path, mapping_overrides)
         profile = profile_dataset(stored_path)
     except Exception as exc:  # noqa: BLE001
         stored_path.unlink(missing_ok=True)
+        stored_path.with_suffix(f"{stored_path.suffix}.mapping.json").unlink(missing_ok=True)
         raise HTTPException(
             status_code=400,
             detail=f"Could not parse dataset: {exc}",

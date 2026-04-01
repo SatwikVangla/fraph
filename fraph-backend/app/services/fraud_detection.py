@@ -15,6 +15,11 @@ def build_feature_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
     )
 
     amount = features["amount"].fillna(0.0).astype(float)
+    step_value = pd.to_numeric(features["step"], errors="coerce").fillna(0.0)
+    sender_group = features.groupby("sender", sort=False)
+    receiver_group = features.groupby("receiver", sort=False)
+    pair_group = features.groupby(["sender", "receiver"], sort=False)
+
     features["amount_log"] = np.log1p(np.abs(amount))
     features["sender_tx_count"] = sender_counts
     features["receiver_tx_count"] = receiver_counts
@@ -23,7 +28,7 @@ def build_feature_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
     features["transaction_type_code"] = pd.factorize(
         features["transaction_type"].fillna("unknown").astype(str)
     )[0]
-    features["step_value"] = pd.to_numeric(features["step"], errors="coerce").fillna(0.0)
+    features["step_value"] = step_value
     features["origin_balance_shift"] = (
         pd.to_numeric(features["balance_delta_orig"], errors="coerce")
         .fillna(0.0)
@@ -40,6 +45,55 @@ def build_feature_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
     features["amount_to_destination_balance"] = amount / (
         pd.to_numeric(features["oldbalance_dest"], errors="coerce").fillna(0.0) + 1.0
     )
+    features["sender_unique_receivers"] = sender_group["receiver"].transform("nunique").astype(float)
+    features["receiver_unique_senders"] = receiver_group["sender"].transform("nunique").astype(float)
+    features["sender_total_sent_amount"] = sender_group["amount"].transform("sum").astype(float)
+    features["receiver_total_received_amount"] = (
+        receiver_group["amount"].transform("sum").astype(float)
+    )
+    features["sender_mean_amount"] = sender_group["amount"].transform("mean").astype(float)
+    features["receiver_mean_amount"] = receiver_group["amount"].transform("mean").astype(float)
+    features["pair_total_amount"] = pair_group["amount"].transform("sum").astype(float)
+    features["pair_mean_amount"] = pair_group["amount"].transform("mean").astype(float)
+    features["pair_density"] = pair_counts / sender_counts.clip(lower=1.0)
+    features["sender_activity_ratio"] = sender_counts / receiver_counts.clip(lower=1.0)
+    features["receiver_activity_ratio"] = receiver_counts / sender_counts.clip(lower=1.0)
+    features["amount_vs_sender_mean"] = amount / features["sender_mean_amount"].replace(0.0, 1.0)
+    features["amount_vs_receiver_mean"] = (
+        amount / features["receiver_mean_amount"].replace(0.0, 1.0)
+    )
+    features["amount_vs_pair_mean"] = amount / features["pair_mean_amount"].replace(0.0, 1.0)
+    features["sender_step_mean"] = sender_group["step"].transform("mean").astype(float)
+    features["receiver_step_mean"] = receiver_group["step"].transform("mean").astype(float)
+    features["step_from_sender_mean"] = (step_value - features["sender_step_mean"]).abs()
+    features["step_from_receiver_mean"] = (step_value - features["receiver_step_mean"]).abs()
+    features["pair_step_rank"] = pair_group.cumcount().astype(float)
+    features["sender_step_rank"] = sender_group.cumcount().astype(float)
+    features["receiver_step_rank"] = receiver_group.cumcount().astype(float)
+    features["counterparty_diversity"] = (
+        features["sender_unique_receivers"] + features["receiver_unique_senders"]
+    )
+    features["account_net_flow"] = (
+        features["sender_total_sent_amount"] - features["receiver_total_received_amount"]
+    )
+    features["pair_time_gap"] = pair_group["step"].diff().abs().fillna(0.0).astype(float)
+    features["sender_time_gap"] = sender_group["step"].diff().abs().fillna(0.0).astype(float)
+    features["receiver_time_gap"] = receiver_group["step"].diff().abs().fillna(0.0).astype(float)
+    features["pair_is_burst"] = (features["pair_time_gap"] <= 1.0).astype(float)
+    features["sender_is_burst"] = (features["sender_time_gap"] <= 1.0).astype(float)
+    features["receiver_is_burst"] = (features["receiver_time_gap"] <= 1.0).astype(float)
+    features["step_percentile"] = step_value.rank(method="average", pct=True).astype(float)
+    features["amount_step_interaction"] = amount * (1.0 + features["step_percentile"])
+    features["balance_shift_total"] = (
+        features["origin_balance_shift"] + features["destination_balance_shift"]
+    )
+    features["balance_gap_ratio"] = features["balance_shift_total"] / (amount.abs() + 1.0)
+    features["is_cashout_like"] = (
+        features["transaction_type"].fillna("").astype(str).str.lower().isin({"cash_out", "cashout"})
+    ).astype(int)
+    features["is_transfer_like"] = (
+        features["transaction_type"].fillna("").astype(str).str.lower().isin({"transfer", "payment"})
+    ).astype(int)
 
     return features
 
@@ -58,6 +112,41 @@ def get_numeric_feature_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
         "destination_balance_shift",
         "amount_to_origin_balance",
         "amount_to_destination_balance",
+        "sender_unique_receivers",
+        "receiver_unique_senders",
+        "sender_total_sent_amount",
+        "receiver_total_received_amount",
+        "sender_mean_amount",
+        "receiver_mean_amount",
+        "pair_total_amount",
+        "pair_mean_amount",
+        "pair_density",
+        "sender_activity_ratio",
+        "receiver_activity_ratio",
+        "amount_vs_sender_mean",
+        "amount_vs_receiver_mean",
+        "amount_vs_pair_mean",
+        "sender_step_mean",
+        "receiver_step_mean",
+        "step_from_sender_mean",
+        "step_from_receiver_mean",
+        "pair_step_rank",
+        "sender_step_rank",
+        "receiver_step_rank",
+        "counterparty_diversity",
+        "account_net_flow",
+        "pair_time_gap",
+        "sender_time_gap",
+        "receiver_time_gap",
+        "pair_is_burst",
+        "sender_is_burst",
+        "receiver_is_burst",
+        "step_percentile",
+        "amount_step_interaction",
+        "balance_shift_total",
+        "balance_gap_ratio",
+        "is_cashout_like",
+        "is_transfer_like",
     ]
     numeric = features[numeric_columns].copy()
     return numeric.replace([np.inf, -np.inf], 0.0).fillna(0.0)

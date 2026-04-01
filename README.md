@@ -1,14 +1,42 @@
 # FRAPH
 
-FRAPH is a fraud-analysis workspace with a React frontend and a FastAPI backend. It accepts transaction CSV files, builds graph summaries, runs fraud scoring, compares traditional ML models, and trains a first GNN baseline for transaction-network classification.
+FRAPH is a fraud-analysis workspace with a React frontend and a FastAPI backend. It accepts transaction CSV files, builds graph summaries, runs fraud scoring, and compares simpler non-graph baselines against a relationship-aware GNN that models users, counterparties, and transactions as a connected system. It also includes async training jobs, experiment history, downloadable reports, diagnostics, and richer model evaluation.
 
-## What It Does
+The repo is intended to run on both Linux and Windows. The application code avoids OS-specific paths, and the benchmark runner now uses the system temp directory instead of a Linux-only `/tmp` path.
 
-- Upload a transaction dataset from the browser
-- Analyze suspicious transactions and network structure
-- Visualize graph activity on the dashboard
-- Compare `KNN`, `Logistic Regression`, `Linear SVC`, `Random Forest`, and `GNN`
-- Train and persist model artifacts under `fraph-backend/trained_models`
+## Current Capabilities
+
+- Upload transaction CSV datasets and store them in SQLite-backed project state
+- Accept broader CSV formats through delimiter sniffing and flexible column inference
+- Let you override sender, receiver, amount, label, type, and time mappings at upload time
+- Show upload validation before analysis:
+  - mapping confidence
+  - graph-readiness assessment
+  - required versus optional field coverage
+- Run fraud analysis with graph summaries and suspicious-transaction scoring
+- Compare `KNN`, `Logistic Regression`, `Linear SVC`, `Gaussian Naive Bayes`, and `GNN`
+- Emphasize graph-based fraud learning through user-to-user and user-to-transaction relationships rather than row-wise scoring alone
+- Show richer evaluation metrics:
+  - Accuracy
+  - Precision
+  - Recall
+  - F1-score
+  - ROC-AUC
+  - PR-AUC
+  - MCC
+  - Confusion matrix values: `TN`, `FP`, `FN`, `TP`
+  - GNN threshold and validation score
+- Surface dataset diagnostics:
+  - class imbalance
+  - duplicate transaction IDs
+  - missing values
+  - self-loop volume
+  - warning messages
+- Persist model artifacts and training history
+- Run async training jobs with progress polling
+- Download markdown model reports generated after training
+- Cache comparison results so the comparison page loads more reliably
+- Show explainability payloads for classical baselines and GNN variants
 
 ## Stack
 
@@ -25,6 +53,8 @@ Backend
 - scikit-learn
 - NetworkX
 - PyTorch
+- torch-geometric
+- matplotlib
 
 ## Repository Layout
 
@@ -52,29 +82,32 @@ fraph/
 └── README.md
 ```
 
-## Cross-Platform Setup
+## Setup
 
-The project is structured to work on both Windows and Linux without OS-specific code paths. Use:
+Use:
 
-- Node.js 20+ for the frontend
-- Python 3.11 or 3.12 for the backend
-- CPU PyTorch install path by default, so machines without CUDA do not pull GPU wheels
+- Node.js 20+
+- Python 3.11 or 3.12
 
-### 1. Clone And Install Frontend
+### Frontend
 
 ```bash
 npm install
 ```
 
-### 2. Create Frontend Env
+Windows PowerShell is also fine here:
 
-Copy [`.env.example`](/home/satwik/fraph/.env.example) to `.env` and adjust only if your backend is not on port `8000`.
+```powershell
+npm install
+```
+
+Create `.env` from `.env.example`:
 
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-### 3. Create Backend Virtual Environment
+### Backend
 
 Linux:
 
@@ -92,463 +125,212 @@ py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-### 4. Install Backend Dependencies
-
-Install the base backend stack first:
+Install dependencies:
 
 ```bash
 pip install -r requirements-base.txt
-```
-
-Then install CPU PyTorch:
-
-```bash
 pip install --index-url https://download.pytorch.org/whl/cpu -r requirements-cpu.txt
 ```
 
-This split is intentional. It avoids accidentally downloading CUDA packages on Windows/Linux systems that only need CPU execution.
+Windows PowerShell uses the same commands after activating the virtual environment.
 
-### 5. Optional Backend Env
-
-Copy [`fraph-backend/.env.example`](/home/satwik/fraph/fraph-backend/.env.example) to `fraph-backend/.env` if you want to customize the backend name or database location.
+Optional backend `.env`:
 
 ```env
 FRAPH_APP_NAME=Fraph Backend
 FRAPH_DATABASE_URL=sqlite:///./fraph.db
 ```
 
-## Running The Project
+## Run
 
-### Start Backend
-
-After activating the backend virtual environment:
+Backend:
 
 ```bash
 cd fraph-backend
 python run_backend.py
 ```
 
-If port `8000` is already used on your machine, run uvicorn manually on another port:
-
-```bash
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
-```
-
-If you do that, update `VITE_API_BASE_URL` in your frontend `.env`.
-
-### Start Frontend
-
-From the repo root:
+Frontend:
 
 ```bash
 npm run dev
 ```
 
-Open the Vite URL shown in the terminal, usually `http://127.0.0.1:5173`.
-
-## Dataset Tutorial
-
-### Recommended Dataset
-
-Use the PaySim transaction fraud dataset for the best current experience in this repo because it contains sender, receiver, amount, balance, and label fields that match the backend pipeline.
-
-Expected useful columns include:
-
-- `step`
-- `type`
-- `amount`
-- `nameOrig`
-- `oldbalanceOrg`
-- `newbalanceOrig`
-- `nameDest`
-- `oldbalanceDest`
-- `newbalanceDest`
-- `isFraud`
-
-### How To Download
-
-You can download PaySim from a public mirror:
-
-- Public mirror used during testing: `https://storage.googleapis.com/ml-design-patterns/fraud_data_kaggle.csv`
-
-Linux:
-
-```bash
-curl -L https://storage.googleapis.com/ml-design-patterns/fraud_data_kaggle.csv -o fraph-backend/datasets/fraud_data_kaggle.csv
-```
-
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://storage.googleapis.com/ml-design-patterns/fraud_data_kaggle.csv -OutFile fraph-backend\datasets\fraud_data_kaggle.csv
+npm run dev
 ```
 
-You can also download a smaller sample yourself if you do not want to upload the full file through the browser.
+## API Surfaces
 
-## How To Use The App
+Core routes:
 
-### 1. Upload A Dataset
+- `POST /upload/`
+- `GET /upload/datasets`
+- `POST /fraud/detect`
+- `POST /compare/`
+- `POST /train/`
+- `POST /train/jobs`
+- `GET /train/jobs/{job_id}`
+- `GET /train/artifacts/{dataset_id}`
+- `GET /train/reports/{artifact_id}`
+- `POST /benchmark/jobs`
+- `GET /benchmark/jobs/{job_id}`
+- `GET /benchmark/runs/{dataset_id}`
 
-1. Start the backend and frontend.
-2. Open the home page.
-3. Click `Analyze Network`.
-4. On the upload page, choose a CSV file.
-5. Click `RUN FRAUD ANALYSIS`.
+### Compare Behavior
 
-The file is sent to `/upload/`, stored under `fraph-backend/datasets`, and indexed in SQLite.
+`/compare/` now prefers:
 
-### 2. View Dashboard Results
+1. cached comparison results for the dataset
+2. persisted artifacts for the dataset
+3. fresh computation only for missing models
 
-After upload, the dashboard automatically calls `/fraud/detect` and shows:
+That makes the comparison page less likely to stall or fail because one model is slow.
+The intended project framing is GNN versus simpler non-graph baselines, not GNN versus every possible strongest tabular ensemble.
 
-- transactions analyzed
-- suspicious transaction count
-- average risk score
-- graph summary
-- suspicious transaction table
+### Async Training Behavior
 
-### 3. Open Model Comparison
+`POST /train/jobs` creates a background training job and returns a `job_id`.
 
-From the dashboard, open the comparison page. It calls `/compare/` and displays:
-
-- KNN
-- Logistic Regression
-- Linear SVC
-- Random Forest
-- GNN
-
-### 4. Train And Persist Models
-
-On the comparison page, click `Train And Save Models`.
-
-That calls `/train/` and stores artifacts under:
-
-- `fraph-backend/trained_models/<dataset-name>/`
-
-Saved artifacts include:
-
-- `.joblib` files for traditional models
-- `.pt` file for the GNN
-
-## Paper Evaluation Workflow
-
-If your goal is a paper, do not rely on a single dashboard run. Use the experiment runner in `fraph-backend/experiments` so every model is evaluated on the same repeated stratified splits.
-
-### Recommended Metrics
-
-For fraud datasets, report all of these:
-
-- Accuracy
-- Precision
-- Recall
-- F1-score
-- ROC-AUC
-- PR-AUC
-- MCC
-- Confusion matrix values: `TN`, `FP`, `FN`, `TP`
-
-### Run A Full Benchmark
-
-After activating the backend virtual environment:
+Poll it with:
 
 ```bash
-cd fraph-backend
-python -m experiments.run_benchmark --dataset datasets/fraud_data_kaggle_sample.csv
+GET /train/jobs/{job_id}
 ```
 
-That command runs repeated stratified cross-validation for:
+The frontend comparison page uses this job flow automatically.
 
-- KNN
-- Logistic Regression
-- Linear SVC
-- Random Forest
-- GNN
+### Benchmark And Experiment History
 
-### Run A GNN Hyperparameter Sweep
+`POST /benchmark/jobs` runs a repeated-stratified benchmark in the background and persists an experiment run record in SQLite.
 
-Use this when you want to tune the proposed GNN before writing your final comparison table:
+The benchmark history for a dataset is available from:
 
 ```bash
-cd fraph-backend
-python -m experiments.run_gnn_sweep --dataset datasets/fraud_data_kaggle_sample.csv
+GET /benchmark/runs/{dataset_id}
 ```
 
-This evaluates multiple combinations of:
+Each benchmark run stores:
 
-- epochs
-- hidden dimension
-- learning rate
-- dropout
+- output root path
+- summary table payload
+- benchmark config
+- run status
 
-Outputs are written to:
+## Training Outputs
 
-- `fraph-backend/outputs/<dataset>-gnn-sweep/`
+Saved under:
 
-Important file:
-
-- `sweep_results.csv`
-
-Use that file to pick the best GNN configuration by `f1_mean`, `pr_auc_mean`, and `roc_auc_mean`.
-
-### Run GNN Ablation Experiments
-
-Use this when you want to justify your GNN design in the paper:
-
-```bash
-cd fraph-backend
-python -m experiments.run_gnn_ablation --dataset datasets/fraud_data_kaggle_sample.csv
+```text
+fraph-backend/trained_models/<dataset-name>/
 ```
 
-The current ablations compare:
+Outputs include:
 
-- full GNN
-- no similarity edges
-- no party edges
-- no class weighting
+- `.joblib` files for classical models
+- `.pt` file for GNN artifacts
+- `.md` report files
+- `.json` report payloads
+- `.png` metrics charts
 
-Outputs are written to:
+## GNN Notes
 
-- `fraph-backend/outputs/<dataset>-gnn-ablation/`
+The current GNN stack includes:
 
-Important file:
+- transaction-account graph construction
+- relationship-aware modeling across senders, receivers, counterparties, and transaction nodes
+- richer graph-aware engineered features
+- residual GraphSAGE layers
+- GAT as a second graph architecture for benchmark comparisons
+- threshold selection on validation data
+- graph-structure and hyperparameter tuning
+- temporal graph edges between nearby sender/receiver events
+- multi-seed selection for more stable GNN runs
+- configurable sampling presets:
+  - `small`
+  - `medium`
+  - `large`
+  - `full`
 
-- `ablation_results.csv`
+The training API accepts `sampling_preset` in `TrainingRequest`.
 
-### Generate A Paper-Ready Results Report
+## Frontend Notes
 
-After running the benchmark, generate paper-friendly tables:
+The comparison page now shows:
 
-```bash
-cd fraph-backend
-python -m experiments.generate_paper_report \
-  --summary outputs/<run-folder>/summary_metrics.csv \
-  --output outputs/paper_report
-```
+- dataset diagnostics
+- async training progress
+- extended comparison metrics
+- confusion matrix values
+- selected config for tuned GNN runs
+- top explainability features
+- report download links for persisted runs
 
-This produces:
+The backend diagnostics also include a leakage audit so you can inspect unusually label-correlated raw fields when a tabular model looks too good to trust blindly.
 
-- `ranked_summary.csv`
-- `paper_table.csv`
-- `paper_table.tex`
-- `paper_report.md`
+The upload page now also supports:
 
-Default experiment settings:
+- CSV delimiter detection for preview
+- manual column mapping
+- upload-time graph-readiness validation
+- transaction-table and graph bidirectional focus on the dashboard
 
-- `5` folds
-- `3` repeats
-- fixed random seed
+## Recommended Dataset
 
-### Customize The Benchmark
+PaySim still fits the pipeline best. Useful columns include:
 
-Example with custom folds, repeats, and GNN settings:
-
-```bash
-python -m experiments.run_benchmark \
-  --dataset datasets/fraud_data_kaggle_sample.csv \
-  --folds 5 \
-  --repeats 3 \
-  --models knn logistic_regression linear_svc random_forest gnn \
-  --gnn-epochs 30 \
-  --gnn-hidden-dim 32 \
-  --gnn-learning-rate 0.01
-```
-
-Windows PowerShell example:
-
-```powershell
-python -m experiments.run_benchmark `
-  --dataset datasets/fraud_data_kaggle_sample.csv `
-  --folds 5 `
-  --repeats 3 `
-  --models knn logistic_regression linear_svc random_forest gnn `
-  --gnn-epochs 30 `
-  --gnn-hidden-dim 32 `
-  --gnn-learning-rate 0.01
-```
-
-### Experiment Outputs
-
-Each run writes a timestamped folder under:
-
-- `fraph-backend/outputs/`
-
-The output folder contains:
-
-- `fold_metrics.csv`
-- `fold_metrics.json`
-- `summary_metrics.csv`
-- `summary_metrics.md`
-- `run_config.json`
-- `plots/<model>_pr_curve.png`
-- `plots/<model>_roc_curve.png`
-- `plots/<model>_confusion_matrix.png`
-
-### How To Read The Results
-
-For paper tables, use `summary_metrics.csv` or `summary_metrics.md`.
-
-Interpretation:
-
-- `accuracy_mean` and `accuracy_std`: average accuracy and variability
-- `f1_mean`: better than accuracy for imbalanced fraud data
-- `pr_auc_mean`: especially important when fraud cases are rare
-- `mcc_mean`: balanced signal even under heavy class imbalance
-
-For your paper, the main comparison table should usually report:
-
-- `Precision`
-- `Recall`
-- `F1`
-- `ROC-AUC`
-- `PR-AUC`
-- `MCC`
-
-Accuracy can still be included, but it should not be your main argument on imbalanced data.
-
-## Working With Different Dataset Types
-
-The current pipeline is strongest on transaction datasets with:
-
-- sender/source account
-- receiver/destination account
-- transaction amount
-- fraud label
-
-### Supported Best
-
-PaySim-style datasets:
-
-- `nameOrig`
-- `nameDest`
-- `amount`
-- `type`
 - `step`
+- `type`
+- `amount`
+- `nameOrig`
 - `oldbalanceOrg`
 - `newbalanceOrig`
+- `nameDest`
 - `oldbalanceDest`
 - `newbalanceDest`
 - `isFraud`
 
-This is the best option for:
+Public mirror used during testing:
 
-- dashboard graph quality
-- classical model comparison
-- current GNN baseline
+- `https://storage.googleapis.com/ml-design-patterns/fraud_data_kaggle.csv`
 
-### Also Supported
+Other useful datasets to test:
 
-Generic labeled transaction CSVs can still work if they at least provide:
+- `BankSim`: another transaction-oriented fraud dataset that is a reasonable fit for sender/receiver and merchant behavior
+- `Elliptic Bitcoin Dataset`: stronger graph-native structure if you want a more relationship-heavy fraud story
+- `IEEE-CIS Fraud Detection`: useful for broader fraud benchmarking, though less graph-centric
+- `Credit Card Fraud Detection`: useful for baseline model checks, but weak for graph claims because sender/receiver structure is limited
 
-- sender/source column
-- receiver/target column
+Best-fit CSV shape for FRAPH:
+
+- one source/sender entity column
+- one destination/receiver entity column
 - amount/value column
-- fraud label column
+- time or event-order column
+- optional fraud label column
 
-If balances or transaction type are missing, the pipeline still runs, but model quality may drop.
+If a CSV is purely generic tabular data with no entity relationship fields, FRAPH can still ingest it, but the graph and GNN become much less meaningful.
 
-### Weak Fit
+## Verification
 
-Purely tabular fraud datasets with no sender/receiver structure can still be used for classical ML benchmarking, but:
+Current verification run for this repo:
 
-- graph visualization becomes weak
-- the GNN becomes much less meaningful
-- the paper claim becomes more about tabular fraud detection than graph learning
+- `python3 -m compileall fraph-backend/app`
+- `python3 -m compileall fraph-backend/experiments`
+- `npm run build`
 
-### Inspect A New Dataset Before Training
+Both passed after the latest frontend and backend changes.
 
-Use the dataset inspector first:
+## Next Good Additions
 
-```bash
-cd fraph-backend
-python -m experiments.inspect_dataset --dataset path/to/your_dataset.csv
-```
+If you want to take the project further, the highest-value next steps are:
 
-It reports:
-
-- detected columns
-- whether the dataset is dashboard-ready
-- whether it is comparison-ready
-- whether it looks PaySim-like
-
-### Quick Decision Rule For New Datasets
-
-Use these rules before running expensive experiments:
-
-- If the dataset has `sender`, `receiver`, `amount`, and a fraud label:
-  good candidate for both classical models and the current GNN
-- If the dataset has only tabular features and a label:
-  good for classical ML, weak for graph claims
-- If the dataset is graph-native but not CSV-shaped:
-  useful for future GNN work, but it likely needs a custom loader first
-
-## Suggested Research Setup
-
-If you want publishable results, use this sequence:
-
-1. Run the experiment runner on PaySim and save the summary table.
-2. Tune the GNN with ablations:
-   - hidden dimension
-   - learning rate
-   - epochs
-   - graph construction strategy
-   - class-weighted vs unweighted loss
-3. Compare the tuned GNN against the same traditional baselines.
-4. Add a second dataset if possible, especially a more graph-native one.
-5. Include mean ± std across repeated folds in the paper.
-
-## Paper Draft Assets
-
-Paper-oriented draft text and comparison assets are available under [`docs/paper`](/home/satwik/fraph/docs/paper). That folder includes:
-
-- a draft abstract
-- a draft methodology section
-- a draft results section
-- a final comparison table based on a unified benchmark run
-- a figure checklist for assembling the paper
-
-## Practical Advice For Your Paper
-
-- Do not claim superiority from a single split.
-- Do not rely on accuracy alone.
-- Include PR-AUC and MCC.
-- Report the exact dataset size, fraud ratio, and preprocessing assumptions.
-- Freeze seeds and experiment settings before writing the final table.
-- Keep one final held-out setup if you want a cleaner final result beyond CV summaries.
-
-## Current Backend Endpoints
-
-- `GET /`
-- `GET /upload/datasets`
-- `POST /upload/`
-- `POST /fraud/detect`
-- `POST /compare/`
-- `POST /train/`
-- `GET /train/artifacts/{dataset_id}`
-
-## Notes On Portability
-
-This repo avoids hardcoded OS-specific path logic in the application code. For best portability:
-
-- use `python run_backend.py` or `python -m uvicorn ...` instead of shell-specific wrappers
-- keep frontend API configuration in `.env`
-- use the CPU PyTorch install path unless you explicitly need GPU support
-- do not commit generated datasets, virtual environments, local SQLite DBs, or trained artifacts
-
-## Verification Commands
-
-Frontend:
-
-```bash
-npm run lint
-npm run build
-```
-
-Backend:
-
-```bash
-python -m compileall app
-```
-
-## Author
-
-Satwik Vangala
+- move background jobs from in-memory threads to a durable queue
+- add SHAP-style explainability for the tabular models
+- add node/subgraph attribution for the GNN
+- export PDF reports in addition to markdown
+- add seeded GNN ensembling for more stable metrics
+- store experiment runs in first-class database tables instead of only artifact JSON
+- add pagination and filtering to suspicious transactions and training history
