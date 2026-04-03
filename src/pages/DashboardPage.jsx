@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import PlaceholderGraph from "../components/PlaceholderGraph";
 import { apiRequest } from "../utils/api";
 
 export default function DashboardPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [analysis, setAnalysis] = useState(null);
   const [dataset, setDataset] = useState(location.state?.dataset ?? null);
   const [datasets, setDatasets] = useState([]);
@@ -198,9 +198,8 @@ export default function DashboardPage() {
               Dataset: {dataset?.name ?? "--"}
             </p>
             <p className="mt-2 max-w-2xl text-sm text-neutral-500">
-              Analyze suspicious flows, inspect transaction relationships, and compare the
-              relationship-aware GNN against KNN, Logistic Regression, Linear SVC, and
-              Gaussian Naive Bayes.
+              Analyze suspicious flows, review the fraud snapshot, and open the dedicated
+              graph explorer to evaluate transaction relationships in a larger workspace.
             </p>
             {datasets.length ? (
               <div className="mt-5 max-w-sm">
@@ -233,15 +232,26 @@ export default function DashboardPage() {
             ) : null}
           </div>
 
-          {analysis?.dataset ? (
-            <Link
-              to={`/compare/${analysis.dataset.id}`}
-              state={{ dataset: analysis.dataset }}
-              className="inline-flex w-fit items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600"
-            >
-              Open GNN Comparison
-            </Link>
-          ) : null}
+          <div className="flex flex-wrap gap-3">
+            {analysis?.dataset ? (
+              <Link
+                to={`/graph/${analysis.dataset.id}`}
+                state={{ dataset: analysis.dataset }}
+                className="inline-flex w-fit items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600"
+              >
+                Open Graph Explorer
+              </Link>
+            ) : null}
+            {analysis?.dataset ? (
+              <Link
+                to={`/compare/${analysis.dataset.id}`}
+                state={{ dataset: analysis.dataset }}
+                className="inline-flex w-fit items-center border border-neutral-700 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:border-neutral-500"
+              >
+                Open GNN Comparison
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         {loading ? (
@@ -315,32 +325,35 @@ export default function DashboardPage() {
               <GnnInsightsCard artifact={latestGnnArtifact} />
             ) : null}
 
-            <div className="mb-12 grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
-              <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold">Transaction Graph</h2>
-                  <p className="mt-2 text-sm text-neutral-500">
-                    Nodes: {analysis.graph.node_count} | Edges: {analysis.graph.edge_count} | Components: {analysis.graph.connected_components}
-                  </p>
+            <div className="mb-12 grid items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+              <div className="rounded-2xl border border-red-900/60 bg-neutral-950 p-6">
+                <p className="text-sm uppercase tracking-[0.3em] text-red-400">Relationship Explorer</p>
+                <h2 className="mt-2 text-2xl font-bold text-white">Open The Graph In A Dedicated Workspace</h2>
+                <p className="mt-3 max-w-2xl text-sm text-neutral-400">
+                  The transaction graph now lives on its own page so you can inspect suspicious paths,
+                  linked accounts, and focused transactions without compressing the dashboard layout.
+                </p>
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  <SnapshotRow label="Nodes" value={analysis.graph.node_count} />
+                  <SnapshotRow label="Edges" value={analysis.graph.edge_count} />
+                  <SnapshotRow label="Components" value={analysis.graph.connected_components} />
                 </div>
-
-                <div className="min-w-0 overflow-hidden rounded-xl border border-neutral-900 bg-black/40">
-                  <PlaceholderGraph
-                    graph={analysis.graph}
-                    focusTransactionId={selectedTransactionId}
-                    onTransactionSelect={setSelectedTransactionId}
-                  />
-                </div>
+                {analysis.dataset ? (
+                  <Link
+                    to={`/graph/${analysis.dataset.id}`}
+                    state={{ dataset: analysis.dataset }}
+                    className="mt-6 inline-flex items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600"
+                  >
+                    Launch Graph Explorer
+                  </Link>
+                ) : null}
               </div>
 
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
                 <h2 className="text-2xl font-bold">Risk Snapshot</h2>
                 <div className="mt-6 space-y-5 text-sm text-neutral-300">
                   <SnapshotRow label="Fraud Rate" value={analysis.summary.fraud_rate} />
-                  <SnapshotRow
-                    label="Total Amount"
-                    value={analysis.summary.total_amount}
-                  />
+                  <SnapshotRow label="Total Amount" value={analysis.summary.total_amount} />
                   <SnapshotRow label="Top Nodes" value={analysis.graph.top_nodes.length} />
                   <SnapshotRow label="Top Edges" value={analysis.graph.top_edges.length} />
                 </div>
@@ -351,7 +364,7 @@ export default function DashboardPage() {
               <div className="border-b border-neutral-800 px-6 py-5">
                 <h2 className="text-2xl font-bold">Suspicious Transactions</h2>
                 <p className="mt-2 text-sm text-neutral-500">
-                  Select a transaction to focus its sender-to-receiver path in the graph.
+                  Open any suspicious transaction in the dedicated graph explorer to inspect its relationship path.
                 </p>
               </div>
 
@@ -377,7 +390,17 @@ export default function DashboardPage() {
                           }
                           transactionRowRefs.current.set(transaction.transaction_id, element);
                         }}
-                        onClick={() => setSelectedTransactionId(transaction.transaction_id)}
+                        onClick={() => {
+                          setSelectedTransactionId(transaction.transaction_id);
+                          if (analysis?.dataset) {
+                            navigate(`/graph/${analysis.dataset.id}`, {
+                              state: {
+                                dataset: analysis.dataset,
+                                transactionId: transaction.transaction_id,
+                              },
+                            });
+                          }
+                        }}
                         className={`cursor-pointer border-b border-neutral-900 transition last:border-b-0 ${
                           selectedTransactionId === transaction.transaction_id
                             ? "bg-red-950/30"

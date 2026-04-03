@@ -101,7 +101,7 @@ canvas {
 
 .hero-frame {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: min(1240px, calc(100% - 32px));
   margin: 0 auto;
   padding: 28px 0 40px;
@@ -328,6 +328,7 @@ canvas {
   position: relative;
   min-height: 640px;
   overflow: hidden;
+  isolation: isolate;
   border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
@@ -357,6 +358,18 @@ canvas {
 .hero-canvas-wrap canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+.hero-stage-right-mask {
+  position: absolute;
+  top: 84px;
+  right: 16px;
+  bottom: 148px;
+  width: min(250px, calc(100% - 32px));
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(270deg, rgba(6, 6, 6, 0.68), rgba(6, 6, 6, 0.18) 58%, transparent 100%);
+  border-radius: 24px;
 }
 
 
@@ -447,6 +460,7 @@ canvas {
   width: min(220px, calc(100% - 36px));
   padding: 18px;
   border-radius: 22px;
+  z-index: 4;
 }
 
 .stage-panel-right p {
@@ -475,6 +489,7 @@ canvas {
   right: 18px;
   bottom: 18px;
   display: grid;
+  z-index: 4;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;

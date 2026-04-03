@@ -103,6 +103,7 @@ function ConnectionLines({ pointerRef }) {
     const pointer = pointerRef.current;
 
     if (groupRef.current) {
+      groupRef.current.position.z = -0.1;
       groupRef.current.rotation.z = THREE.MathUtils.lerp(
         groupRef.current.rotation.z,
         Math.sin(elapsed * 0.18) * 0.16 + pointer.x * 0.12,
@@ -113,7 +114,7 @@ function ConnectionLines({ pointerRef }) {
         Math.cos(elapsed * 0.14) * 0.08 + pointer.y * 0.1,
         delta * 2.4,
       );
-      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, pointer.x * 0.45, delta * 2.2);
+      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, -0.62 + pointer.x * 0.28, delta * 2.2);
       groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, pointer.y * 0.3, delta * 2.2);
     }
 
@@ -163,7 +164,7 @@ function DataNodes({ pointerRef }) {
         delta * 2,
       );
       groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, pointer.y * 0.14, delta * 2);
-      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, pointer.x * 0.28, delta * 1.8);
+      groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, -0.9 + pointer.x * 0.18, delta * 1.8);
       groupRef.current.position.y = THREE.MathUtils.lerp(
         groupRef.current.position.y,
         Math.sin(elapsed * 0.5) * 0.08 + pointer.y * 0.18,
@@ -240,7 +241,7 @@ function ForgeTitle({ pointerRef }) {
         Math.sin(elapsed * 0.38) * 0.28 + pointer.x * 0.32,
         delta * 2.1,
       );
-      titleRef.current.position.x = THREE.MathUtils.lerp(titleRef.current.position.x, pointer.x * 0.24, delta * 1.9);
+      titleRef.current.position.x = THREE.MathUtils.lerp(titleRef.current.position.x, -1.1 + pointer.x * 0.18, delta * 1.9);
       titleRef.current.position.y = THREE.MathUtils.lerp(
         titleRef.current.position.y,
         -0.18 + Math.sin(elapsed * 0.75) * 0.09 + pointer.y * 0.18,
@@ -251,7 +252,7 @@ function ForgeTitle({ pointerRef }) {
     if (haloRef.current) {
       haloRef.current.scale.x = 1.55 + Math.sin(elapsed * 1.3) * 0.08;
       haloRef.current.scale.y = 0.82 + Math.cos(elapsed * 1.3) * 0.06;
-      haloRef.current.position.x = pointer.x * 0.18;
+      haloRef.current.position.x = -0.95 + pointer.x * 0.12;
       haloRef.current.position.y = -0.32 + pointer.y * 0.12;
       haloRef.current.material.opacity = 0.24 + Math.sin(elapsed * 1.6) * 0.06;
     }
@@ -259,12 +260,12 @@ function ForgeTitle({ pointerRef }) {
 
   return (
     <group>
-      <mesh ref={haloRef} position={[0, -0.32, -1.35]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh ref={haloRef} position={[-0.95, -0.32, -1.35]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[2.4, 3.7, 64]} />
         <meshBasicMaterial color="#ff4f5f" transparent opacity={0.26} side={THREE.DoubleSide} />
       </mesh>
 
-      <group ref={titleRef} position={[0, -0.18, 0.28]}>
+      <group ref={titleRef} position={[-1.1, -0.18, 0.28]}>
         <mesh position={[0.05, -0.07, 0]}>
           <planeGeometry args={[6.8, 3.4]} />
           <meshBasicMaterial map={accentTexture} transparent depthWrite={false} />
@@ -288,7 +289,7 @@ function SceneRig({ pointerRef }) {
     if (cameraRef.current) {
       cameraRef.current.position.x = THREE.MathUtils.lerp(
         cameraRef.current.position.x,
-        Math.sin(elapsed * 0.18) * 0.6 + pointer.x * 0.9,
+        -0.3 + Math.sin(elapsed * 0.18) * 0.42 + pointer.x * 0.45,
         delta * 1.6,
       );
       cameraRef.current.position.y = THREE.MathUtils.lerp(
@@ -296,7 +297,7 @@ function SceneRig({ pointerRef }) {
         0.2 + Math.cos(elapsed * 0.22) * 0.18 + pointer.y * 0.45,
         delta * 1.6,
       );
-      cameraRef.current.lookAt(pointer.x * 0.45, pointer.y * 0.3, 0);
+      cameraRef.current.lookAt(-0.6 + pointer.x * 0.24, pointer.y * 0.22, 0);
     }
   });
 

@@ -38,6 +38,16 @@ def _resolve_dataset(payload: CompareRequest, db: Session) -> DatasetRecord:
     return record
 
 
+def _load_artifact_metrics(artifact: ModelArtifactRecord | None) -> dict[str, object] | None:
+    if artifact is None or not artifact.metrics_json:
+        return None
+
+    payload = json.loads(artifact.metrics_json)
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
 @router.post("/", response_model=CompareResponse)
 def compare_models(
     payload: CompareRequest,
@@ -59,30 +69,41 @@ def compare_models(
         .all()
     )
     latest_artifacts: dict[str, ModelArtifactRecord] = {}
+    artifact_payloads: dict[str, dict[str, object]] = {}
     for artifact in artifact_records:
         latest_artifacts.setdefault(artifact.model_name, artifact)
+
+    for model_name, artifact in latest_artifacts.items():
+        payload_metrics = _load_artifact_metrics(artifact)
+        if payload_metrics is not None:
+            artifact_payloads[model_name] = payload_metrics
 
     missing_models = [
         model_name
         for model_name in requested_models
-        if model_name not in cached_results and model_name not in latest_artifacts
+        if not _has_material_metrics(cached_results.get(model_name, {}))
+        and not _has_material_metrics(artifact_payloads.get(model_name, {}))
     ]
-    model_results = compare_baseline_models(
-        dataset_path=record.stored_path,
-        dataset_name=record.name,
-        requested_models=missing_models,
-    ) if missing_models else []
-    for result in model_results:
-        if _has_material_metrics(result):
-            set_cached_model_result(record.id, str(result["model_name"]), result)
+    if missing_models:
+        comparison_results = compare_baseline_models(
+            dataset_path=record.stored_path,
+            dataset_name=record.name,
+            requested_models=missing_models,
+        )
+        for result in comparison_results:
+            result_model_name = str(result.get("model_name", ""))
+            if result_model_name not in missing_models:
+                continue
+            cached_results[result_model_name] = result
+            if _has_material_metrics(result):
+                set_cached_model_result(record.id, result_model_name, result)
 
     prepared, _profile = preprocess_dataset(record.stored_path)
     diagnostics = build_dataset_diagnostics(prepared)
 
     merged_results: list[ModelMetric] = []
-    live_results = {str(result["model_name"]): result for result in model_results}
     for model_name in requested_models:
-        result = live_results.get(model_name) or cached_results.get(model_name)
+        result = cached_results.get(model_name)
         artifact = latest_artifacts.get(model_name)
         if result is not None and _has_material_metrics(result):
             merged_results.append(
@@ -111,8 +132,8 @@ def compare_models(
             )
             continue
 
-        if artifact and artifact.metrics_json:
-            payload_metrics = json.loads(artifact.metrics_json)
+        payload_metrics = artifact_payloads.get(model_name)
+        if artifact and payload_metrics and _has_material_metrics(payload_metrics):
             merged_results.append(
                 ModelMetric(
                     model_name=artifact.model_name,

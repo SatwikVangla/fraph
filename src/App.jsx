@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 const Hero = lazy(() => import("./components/Hero"));
 const ComparePage = lazy(() => import("./pages/ComparePage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const GraphPage = lazy(() => import("./pages/GraphPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 
 function RouteLoader() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/" element={<Hero />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/graph/:datasetId" element={<GraphPage />} />
           <Route path="/compare/:datasetId" element={<ComparePage />} />
         </Routes>
       </Suspense>

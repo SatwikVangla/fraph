@@ -134,6 +134,7 @@ export default function Hero() {
           <div className="hero-stage">
             <div className="hero-stage-shell">
               <div className="hero-stage-screen">
+                <div className="hero-stage-right-mask" aria-hidden="true" />
                 {showScene ? (
                   <Suspense fallback={<SceneFallback />}>
                     <HomeTitleScene />
