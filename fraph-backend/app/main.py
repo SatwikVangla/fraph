@@ -5,7 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database.db import init_db
-from app.routes import benchmark_router, compare_router, fraud_router, training_router, upload_router
+from app.routes.benchmark import router as benchmark_router
+from app.routes.compare import router as compare_router
+from app.routes.fraud import router as fraud_router
+from app.routes.training import router as training_router
+from app.routes.upload import router as upload_router
 from app.utils.helpers import ensure_runtime_directories
 
 
@@ -22,8 +26,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 app.include_router(upload_router)
@@ -33,6 +37,6 @@ app.include_router(training_router)
 app.include_router(benchmark_router)
 
 
-@app.get("/")
+@app.get('/')
 def read_root() -> dict[str, str]:
-    return {"message": f"{settings.app_name} is running"}
+    return {'message': f'{settings.app_name} is running'}

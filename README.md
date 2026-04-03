@@ -313,6 +313,31 @@ Best-fit CSV shape for FRAPH:
 
 If a CSV is purely generic tabular data with no entity relationship fields, FRAPH can still ingest it, but the graph and GNN become much less meaningful.
 
+## Chapter 8: Testing
+
+FRAPH now includes both white-box and black-box backend tests under `fraph-backend/tests`.
+
+White-box coverage focuses on internal deterministic logic:
+
+- slug generation and dataset naming helpers
+- dataset profiling and column inference
+- mapping override handling
+- preprocessing normalization such as generated transaction IDs, parsed labels, and derived time steps
+
+Black-box coverage focuses on externally visible API behavior:
+
+- `GET /upload/datasets` returns persisted dataset metadata
+- `GET /upload/preprocessing-status/{dataset_id}` returns the expected status or 404 response
+
+Run the backend tests with:
+
+```bash
+cd fraph-backend
+python3 -m pytest tests
+```
+
+The integration tests isolate their own SQLite database and temporary dataset directory, so they do not mutate the main `fraph.db` or the checked-in runtime folders.
+
 ## Verification
 
 Current verification run for this repo:
