@@ -161,15 +161,12 @@ def _normalize_series(series: pd.Series) -> pd.Series:
     return (numeric - min_value) / (max_value - min_value)
 
 
-def run_fraud_detection(
-    dataset_path: str,
+def run_fraud_detection_from_prepared(
+    prepared: pd.DataFrame,
+    profile,
     threshold: float = 0.65,
     limit: int = 10,
 ) -> dict[str, object]:
-    prepared, profile = preprocess_dataset(
-        dataset_path,
-        max_rows=recommended_max_rows(dataset_path, purpose="interactive"),
-    )
     features = build_feature_frame(prepared)
     numeric_features = get_numeric_feature_frame(prepared)
 
@@ -252,3 +249,20 @@ def run_fraud_detection(
         },
         "suspicious_transactions": suspicious_transactions,
     }
+
+def run_fraud_detection(
+    dataset_path: str,
+    threshold: float = 0.65,
+    limit: int = 10,
+) -> dict[str, object]:
+    prepared, profile = preprocess_dataset(
+        dataset_path,
+        max_rows=recommended_max_rows(dataset_path, purpose="interactive"),
+    )
+    return run_fraud_detection_from_prepared(
+        prepared=prepared,
+        profile=profile,
+        threshold=threshold,
+        limit=limit,
+    )
+

@@ -9,9 +9,9 @@ from app.services.dataset_preparation import (
     load_prepared_analysis_artifact,
     read_preparation_status,
 )
-from app.services.fraud_detection import run_fraud_detection
-from app.services.graph_builder import build_graph
-from app.services.preprocessing import is_large_dataset
+from app.services.fraud_detection import run_fraud_detection_from_prepared
+from app.services.graph_builder import build_graph_from_prepared
+from app.services.preprocessing import is_large_dataset, preprocess_dataset, recommended_max_rows
 
 router = APIRouter(prefix="/fraud", tags=["fraud"])
 
@@ -58,13 +58,18 @@ def detect_fraud(
             suspicious_transactions=artifact_payload["suspicious_transactions"],
         )
 
-    analysis = run_fraud_detection(
-        dataset_path=record.stored_path,
+    prepared, profile = preprocess_dataset(
+        record.stored_path,
+        max_rows=recommended_max_rows(record.stored_path, purpose="interactive"),
+    )
+    analysis = run_fraud_detection_from_prepared(
+        prepared=prepared,
+        profile=profile,
         threshold=payload.threshold,
         limit=payload.limit,
     )
-    graph = build_graph(
-        record.stored_path,
+    graph = build_graph_from_prepared(
+        prepared,
         limit=payload.limit,
         suspicious_transaction_ids=[
             str(item["transaction_id"]) for item in analysis["suspicious_transactions"]

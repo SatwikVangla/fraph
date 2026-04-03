@@ -4,15 +4,11 @@ import pandas as pd
 from app.services.preprocessing import preprocess_dataset, recommended_max_rows
 
 
-def build_graph(
-    dataset_path: str,
+def build_graph_from_prepared(
+    dataframe: pd.DataFrame,
     limit: int = 10,
     suspicious_transaction_ids: list[str] | None = None,
 ) -> dict[str, object]:
-    dataframe, _profile = preprocess_dataset(
-        dataset_path,
-        max_rows=recommended_max_rows(dataset_path, purpose="interactive"),
-    )
     dataframe = dataframe.copy()
     dataframe["transaction_id"] = dataframe["transaction_id"].astype(str)
     if "label" in dataframe.columns:
@@ -20,44 +16,34 @@ def build_graph(
     else:
         dataframe["label"] = False
 
-    graph = nx.DiGraph()
-    for row in dataframe.itertuples(index=False):
-        sender = str(row.sender)
-        receiver = str(row.receiver)
-        amount = float(row.amount)
+    dataframe["sender"] = dataframe["sender"].astype(str)
+    dataframe["receiver"] = dataframe["receiver"].astype(str)
+    dataframe["amount"] = pd.to_numeric(dataframe["amount"], errors="coerce").fillna(0.0)
 
-        if graph.has_edge(sender, receiver):
-            graph[sender][receiver]["count"] += 1
-            graph[sender][receiver]["total_amount"] += amount
-        else:
-            graph.add_edge(sender, receiver, count=1, total_amount=amount)
-
-    for node in graph.nodes:
-        total_amount = 0.0
-        for _, _, data in graph.in_edges(node, data=True):
-            total_amount += float(data.get("total_amount", 0.0))
-        for _, _, data in graph.out_edges(node, data=True):
-            total_amount += float(data.get("total_amount", 0.0))
-        graph.nodes[node]["total_amount"] = total_amount
-
-    ranked_nodes = sorted(
-        graph.nodes,
-        key=lambda node: (
-            graph.degree(node),
-            graph.nodes[node].get("total_amount", 0.0),
-        ),
-        reverse=True,
+    grouped_edges = (
+        dataframe.groupby(["sender", "receiver"], sort=False)["amount"]
+        .agg(count="size", total_amount="sum")
+        .reset_index()
     )
+    edge_count = int(len(grouped_edges))
+    node_count = int(pd.Index(dataframe["sender"]).union(pd.Index(dataframe["receiver"])).nunique())
 
-    ranked_edges = sorted(
-        graph.edges(data=True),
-        key=lambda edge: edge[2].get("total_amount", 0.0),
-        reverse=True,
-    )
+    incoming_totals = grouped_edges.groupby("receiver", sort=False)["total_amount"].sum()
+    outgoing_totals = grouped_edges.groupby("sender", sort=False)["total_amount"].sum()
+    in_degree = grouped_edges.groupby("receiver", sort=False)["sender"].count()
+    out_degree = grouped_edges.groupby("sender", sort=False)["receiver"].count()
+
+    node_frame = pd.DataFrame(index=pd.Index(dataframe["sender"]).union(pd.Index(dataframe["receiver"])))
+    node_frame["total_amount"] = incoming_totals.add(outgoing_totals, fill_value=0.0)
+    node_frame["degree"] = in_degree.add(out_degree, fill_value=0).astype(int)
+    node_frame = node_frame.fillna({"total_amount": 0.0, "degree": 0})
+
+    ranked_nodes = node_frame.sort_values(["degree", "total_amount"], ascending=False).index.tolist()
+    ranked_edges = grouped_edges.sort_values("total_amount", ascending=False)
 
     selected_node_ids: list[str] = []
-    for source, target, _data in ranked_edges:
-        for node_id in (source, target):
+    for row in ranked_edges.itertuples(index=False):
+        for node_id in (str(row.sender), str(row.receiver)):
             if node_id not in selected_node_ids:
                 selected_node_ids.append(node_id)
             if len(selected_node_ids) >= limit:
@@ -72,20 +58,12 @@ def build_graph(
             if len(selected_node_ids) >= limit:
                 break
 
-    selected_node_set = set(selected_node_ids)
-    top_nodes = [node_id for node_id in selected_node_ids if node_id in selected_node_set]
-    top_edges = [
-        (source, target, data)
-        for source, target, data in ranked_edges
-        if source in selected_node_set and target in selected_node_set
-    ][: max(limit * 2, 1)]
-
-    density = nx.density(graph) if graph.number_of_nodes() > 1 else 0.0
-    components = (
-        nx.number_weakly_connected_components(graph)
-        if graph.number_of_nodes() > 0
-        else 0
+    account_graph = nx.Graph()
+    account_graph.add_edges_from(
+        (str(row.sender), str(row.receiver)) for row in grouped_edges.itertuples(index=False)
     )
+    density = nx.density(account_graph) if account_graph.number_of_nodes() > 1 else 0.0
+    components = nx.number_connected_components(account_graph) if account_graph.number_of_nodes() else 0
 
     focus_ids = set(suspicious_transaction_ids or [])
     if not focus_ids:
@@ -194,10 +172,27 @@ def build_graph(
     ]
 
     return {
-        "node_count": graph.number_of_nodes(),
-        "edge_count": graph.number_of_edges(),
+        "node_count": node_count,
+        "edge_count": edge_count,
         "connected_components": components,
         "density": round(float(density), 4),
         "top_nodes": top_nodes[: max(limit * 2, 1)],
         "top_edges": top_edges[: max(limit * 4, 1)],
     }
+
+
+
+def build_graph(
+    dataset_path: str,
+    limit: int = 10,
+    suspicious_transaction_ids: list[str] | None = None,
+) -> dict[str, object]:
+    dataframe, _profile = preprocess_dataset(
+        dataset_path,
+        max_rows=recommended_max_rows(dataset_path, purpose="interactive"),
+    )
+    return build_graph_from_prepared(
+        dataframe=dataframe,
+        limit=limit,
+        suspicious_transaction_ids=suspicious_transaction_ids,
+    )
