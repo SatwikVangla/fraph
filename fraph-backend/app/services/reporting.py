@@ -1,5 +1,9 @@
 import json
+import os
+import tempfile
 from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "fraph-matplotlib"))
 
 import matplotlib.pyplot as plt
 

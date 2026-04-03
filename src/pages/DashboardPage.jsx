@@ -11,6 +11,8 @@ export default function DashboardPage() {
   const [datasets, setDatasets] = useState([]);
   const [preprocessingJob, setPreprocessingJob] = useState(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState(null);
+  const [latestGnnArtifact, setLatestGnnArtifact] = useState(null);
+  const [deviceStatus, setDeviceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const hasDatasets = datasets.length > 0;
@@ -39,6 +41,7 @@ export default function DashboardPage() {
         setLoading(true);
         setError("");
         setAnalysis(null);
+        setLatestGnnArtifact(null);
 
         let activeDataset = dataset;
         if (!activeDataset) {
@@ -49,6 +52,30 @@ export default function DashboardPage() {
           activeDataset = datasets[0];
           if (active) {
             setDataset(activeDataset);
+          }
+        }
+
+        try {
+          const deviceResponse = await apiRequest("/train/device");
+          if (active) {
+            setDeviceStatus(deviceResponse.device ?? null);
+          }
+        } catch {
+          if (active) {
+            setDeviceStatus(null);
+          }
+        }
+
+        try {
+          const artifacts = await apiRequest(`/train/artifacts/${activeDataset.id}`);
+          if (active) {
+            setLatestGnnArtifact(
+              artifacts.find((artifact) => artifact.model_name === "gnn") ?? null,
+            );
+          }
+        } catch {
+          if (active) {
+            setLatestGnnArtifact(null);
           }
         }
 
@@ -246,6 +273,14 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
+        {!loading && deviceStatus && !deviceStatus.cuda_available && !deviceStatus.mps_available ? (
+          <div className="mb-10 rounded-2xl border border-amber-700/60 bg-amber-950/20 p-6 text-amber-100">
+            GPU acceleration is not currently available to the backend. Analysis and GNN training
+            will run on <span className="font-semibold text-white">{deviceStatus.selected_device}</span>.
+            {deviceStatus.cuda_version ? ` PyTorch was built with CUDA ${deviceStatus.cuda_version}, but no usable GPU was detected.` : ""}
+          </div>
+        ) : null}
+
         {error ? (
           <div className="rounded-2xl border border-red-800 bg-red-950/20 p-6 text-red-300">
             {error}
@@ -275,6 +310,10 @@ export default function DashboardPage() {
                 value={analysis.summary.average_risk_score}
               />
             </div>
+
+            {latestGnnArtifact ? (
+              <GnnInsightsCard artifact={latestGnnArtifact} />
+            ) : null}
 
             <div className="mb-12 grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
               <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
@@ -370,6 +409,78 @@ export default function DashboardPage() {
             </div>
           </>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function formatDashboardEvaluation(strategy) {
+  if (!strategy) {
+    return "No saved evaluation metadata";
+  }
+
+  const trainRange = `${strategy.train_step_min ?? "--"}-${strategy.train_step_max ?? "--"}`;
+  const testRange = `${strategy.test_step_min ?? "--"}-${strategy.test_step_max ?? "--"}`;
+  return `Chronological holdout | train ${trainRange} | test ${testRange}`;
+}
+
+function GnnInsightsCard({ artifact }) {
+  const config = artifact?.selected_config ?? {};
+  const graphSummary = artifact?.explainability?.graph_summary ?? {};
+  const ablationSummary = (artifact?.explainability?.ablation_summary ?? []).slice(0, 3);
+
+  return (
+    <div className="mb-12 rounded-2xl border border-red-900/60 bg-neutral-950 p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm uppercase tracking-[0.3em] text-red-400">Saved GNN Insight</p>
+          <h2 className="mt-2 text-2xl font-bold text-white">Latest Relationship-Aware Model</h2>
+          <p className="mt-2 max-w-3xl text-sm text-neutral-400">
+            The dashboard is showing the latest persisted graph model for this dataset, including graph scale, device, evaluation strategy, and the strongest ablation takeaways.
+          </p>
+        </div>
+        <div className="rounded-xl border border-neutral-800 bg-black/40 px-4 py-3 text-xs uppercase tracking-[0.22em] text-neutral-300">
+          {String(config.model_architecture ?? "--").toUpperCase()} | F1 {artifact?.f1_score ?? "--"}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-5">
+        <MetricCard label="Device" value={graphSummary.device ?? "--"} />
+        <MetricCard label="Nodes" value={graphSummary.total_nodes ?? "--"} />
+        <MetricCard label="Edges" value={graphSummary.edge_count ?? "--"} />
+        <MetricCard label="Edge Features" value={graphSummary.edge_feature_count ?? "--"} />
+        <MetricCard label="PR AUC" value={artifact?.pr_auc ?? "--"} />
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-2xl border border-neutral-800 bg-black/30 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">Evaluation</p>
+          <p className="mt-3 text-sm text-white">{formatDashboardEvaluation(config.evaluation_strategy)}</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-neutral-200">
+            <span className="rounded-full border border-red-900/70 px-3 py-2">Similarity {config.use_similarity_edges ? "On" : "Off"}</span>
+            <span className="rounded-full border border-red-900/70 px-3 py-2">Party {config.use_party_edges ? "On" : "Off"}</span>
+            <span className="rounded-full border border-red-900/70 px-3 py-2">Temporal {config.use_temporal_edges ? "On" : "Off"}</span>
+            <span className="rounded-full border border-red-900/70 px-3 py-2">Accounts {config.include_account_nodes ? "On" : "Off"}</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-800 bg-black/30 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">Top Ablation Takeaways</p>
+          <div className="mt-4 space-y-3 text-sm text-neutral-300">
+            {ablationSummary.length ? ablationSummary.map((item) => (
+              <div key={item.name} className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-4">
+                <p className="font-semibold text-white">{item.label}</p>
+                <p className="mt-2 text-xs uppercase tracking-[0.18em] text-neutral-500">
+                  {String(item.architecture ?? "--").toUpperCase()} | F1 {item.f1_score ?? "--"} | PR AUC {item.pr_auc ?? "--"}
+                </p>
+              </div>
+            )) : (
+              <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-4 text-neutral-400">
+                No saved ablation results are available yet for this dataset.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

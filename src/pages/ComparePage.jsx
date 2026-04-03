@@ -20,6 +20,7 @@ export default function ComparePage() {
   const [datasets, setDatasets] = useState([]);
   const [trainingResults, setTrainingResults] = useState([]);
   const [job, setJob] = useState(null);
+  const [deviceStatus, setDeviceStatus] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
@@ -100,6 +101,17 @@ export default function ComparePage() {
           return;
         }
         setDatasets(response);
+
+        try {
+          const deviceResponse = await apiRequest("/train/device");
+          if (active) {
+            setDeviceStatus(deviceResponse.device ?? null);
+          }
+        } catch {
+          if (active) {
+            setDeviceStatus(null);
+          }
+        }
 
         const fallbackDataset =
           response.find((item) => item.id === routeDatasetId) ??
@@ -331,6 +343,14 @@ export default function ComparePage() {
         {loading ? (
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-10 text-neutral-300">
             Loading model comparison...
+          </div>
+        ) : null}
+
+        {!loading && deviceStatus && !deviceStatus.cuda_available && !deviceStatus.mps_available ? (
+          <div className="mb-8 rounded-2xl border border-amber-800 bg-amber-950/20 p-6 text-amber-100">
+            GPU acceleration is not currently available to the backend. Training will fall back to
+            <span className="font-semibold text-white"> {deviceStatus.selected_device}</span>.
+            {deviceStatus.cuda_version ? ` PyTorch was built with CUDA ${deviceStatus.cuda_version}, but no usable GPU was detected.` : ""}
           </div>
         ) : null}
 

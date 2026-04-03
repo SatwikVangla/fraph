@@ -23,6 +23,21 @@ def _get_training_device() -> torch.device:
     return torch.device("cpu")
 
 
+def get_training_device_summary() -> dict[str, object]:
+    cuda_available = bool(torch.cuda.is_available())
+    summary = {
+        "selected_device": str(_get_training_device()),
+        "cuda_available": cuda_available,
+        "cuda_version": torch.version.cuda,
+        "cuda_device_count": int(torch.cuda.device_count()) if cuda_available else 0,
+        "mps_available": bool(hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+        "torch_version": torch.__version__,
+    }
+    if cuda_available:
+        summary["cuda_device_name"] = torch.cuda.get_device_name(0)
+    return summary
+
+
 @dataclass
 class GraphData:
     features: torch.Tensor
@@ -30,19 +45,38 @@ class GraphData:
     labels: torch.Tensor
     edge_index: torch.Tensor
     edge_weight: torch.Tensor
+    edge_attr: torch.Tensor
     transaction_node_count: int
     train_mask: torch.Tensor
     val_mask: torch.Tensor
     test_mask: torch.Tensor
 
 
+EDGE_FEATURE_NAMES = [
+    "normalized_weight",
+    "temporal_affinity",
+    "amount_affinity",
+    "similarity_flag",
+    "party_flag",
+    "temporal_flag",
+    "account_bridge_flag",
+    "self_loop_flag",
+]
+
+
 class TransactionGraphSAGE(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, dropout: float = 0.2):
+    def __init__(self, input_dim: int, hidden_dim: int, edge_feature_dim: int, dropout: float = 0.2):
         super().__init__()
         self.input_encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
+        )
+        self.edge_feature_gate = nn.Sequential(
+            nn.Linear(edge_feature_dim, max(hidden_dim // 2, 16)),
+            nn.GELU(),
+            nn.Linear(max(hidden_dim // 2, 16), 1),
+            nn.Sigmoid(),
         )
         self.conv1 = GraphConv(hidden_dim, hidden_dim)
         self.conv2 = GraphConv(hidden_dim, hidden_dim)
@@ -74,24 +108,27 @@ class TransactionGraphSAGE(nn.Module):
         inputs: torch.Tensor,
         edge_index: torch.Tensor,
         edge_weight: torch.Tensor,
+        edge_attr: torch.Tensor,
     ) -> torch.Tensor:
         encoded_inputs = self.input_encoder(inputs)
-        hidden = self.conv1(encoded_inputs, edge_index, edge_weight)
+        learned_edge_scale = 0.35 + (self.edge_feature_gate(edge_attr).squeeze(-1) * 1.65)
+        effective_edge_weight = edge_weight * learned_edge_scale
+        hidden = self.conv1(encoded_inputs, edge_index, effective_edge_weight)
         hidden = self.norm1(hidden + encoded_inputs)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
         residual_hidden = hidden
-        hidden = self.conv2(hidden, edge_index, edge_weight)
+        hidden = self.conv2(hidden, edge_index, effective_edge_weight)
         hidden = self.norm2(hidden + residual_hidden)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
         residual_hidden = hidden
-        hidden = self.conv3(hidden, edge_index, edge_weight)
+        hidden = self.conv3(hidden, edge_index, effective_edge_weight)
         hidden = self.norm3(hidden + residual_hidden)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
         residual_hidden = hidden
-        hidden = self.conv4(hidden, edge_index, edge_weight)
+        hidden = self.conv4(hidden, edge_index, effective_edge_weight)
         hidden = self.norm4(hidden + residual_hidden)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
@@ -110,15 +147,15 @@ class TransactionGraphSAGE(nn.Module):
 
 
 class TransactionGraphGAT(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, dropout: float = 0.2):
+    def __init__(self, input_dim: int, hidden_dim: int, edge_feature_dim: int, dropout: float = 0.2):
         super().__init__()
         self.input_encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
         )
-        self.conv1 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout, edge_dim=1)
-        self.conv2 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout, edge_dim=1)
+        self.conv1 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout, edge_dim=edge_feature_dim)
+        self.conv2 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout, edge_dim=edge_feature_dim)
         self.norm1 = LayerNorm(hidden_dim)
         self.norm2 = LayerNorm(hidden_dim)
         self.classifier = nn.Sequential(
@@ -134,9 +171,9 @@ class TransactionGraphGAT(nn.Module):
         inputs: torch.Tensor,
         edge_index: torch.Tensor,
         edge_weight: torch.Tensor,
+        edge_attr: torch.Tensor,
     ) -> torch.Tensor:
         encoded = self.input_encoder(inputs)
-        edge_attr = edge_weight.unsqueeze(-1)
         hidden = self.conv1(encoded, edge_index, edge_attr=edge_attr)
         hidden = self.norm1(hidden + encoded)
         hidden = F.gelu(hidden)
@@ -419,15 +456,58 @@ def build_transaction_graph_from_prepared(
     label_tensor = torch.tensor(all_labels, dtype=torch.long)
 
     node_count = len(features_frame)
-    edge_weights: dict[tuple[int, int], float] = {
-        (index, index): 1.0 for index in range(node_count)
+    edge_records: dict[tuple[int, int], dict[str, float]] = {
+        (index, index): {
+            "weight": 1.0,
+            "temporal_affinity": 1.0,
+            "amount_affinity": 1.0,
+            "similarity_flag": 0.0,
+            "party_flag": 0.0,
+            "temporal_flag": 0.0,
+            "account_bridge_flag": 0.0,
+            "self_loop_flag": 1.0,
+        }
+        for index in range(node_count)
     }
     step_values = pd.to_numeric(labeled["step"], errors="coerce").fillna(0.0).tolist()
     amount_values = pd.to_numeric(labeled["amount"], errors="coerce").fillna(0.0).tolist()
 
-    def upsert_edge(source: int, target: int, weight: float) -> None:
+    def upsert_edge(
+        source: int,
+        target: int,
+        weight: float,
+        *,
+        temporal_affinity: float = 0.0,
+        amount_affinity: float = 0.0,
+        similarity_flag: float = 0.0,
+        party_flag: float = 0.0,
+        temporal_flag: float = 0.0,
+        account_bridge_flag: float = 0.0,
+        self_loop_flag: float = 0.0,
+    ) -> None:
         key = (source, target)
-        edge_weights[key] = max(edge_weights.get(key, 0.0), float(weight))
+        record = edge_records.get(key)
+        if record is None:
+            edge_records[key] = {
+                "weight": float(weight),
+                "temporal_affinity": float(temporal_affinity),
+                "amount_affinity": float(amount_affinity),
+                "similarity_flag": float(similarity_flag),
+                "party_flag": float(party_flag),
+                "temporal_flag": float(temporal_flag),
+                "account_bridge_flag": float(account_bridge_flag),
+                "self_loop_flag": float(self_loop_flag),
+            }
+            return
+
+        record["weight"] = max(record["weight"], float(weight))
+        record["temporal_affinity"] = max(record["temporal_affinity"], float(temporal_affinity))
+        record["amount_affinity"] = max(record["amount_affinity"], float(amount_affinity))
+        record["similarity_flag"] = max(record["similarity_flag"], float(similarity_flag))
+        record["party_flag"] = max(record["party_flag"], float(party_flag))
+        record["temporal_flag"] = max(record["temporal_flag"], float(temporal_flag))
+        record["account_bridge_flag"] = max(record["account_bridge_flag"], float(account_bridge_flag))
+        record["self_loop_flag"] = max(record["self_loop_flag"], float(self_loop_flag))
 
     if use_similarity_edges:
         transaction_tensor = feature_tensor[:transaction_node_count]
@@ -446,11 +526,23 @@ def build_transaction_graph_from_prepared(
                 for edge_position, target in enumerate(neighbor_indices[local_source].tolist()):
                     if target == source:
                         continue
-                    weight = max(float(neighbor_values[local_source, edge_position].item()), 0.0)
-                    if weight <= 0.0:
+                    similarity_score = max(float(neighbor_values[local_source, edge_position].item()), 0.0)
+                    if similarity_score <= 0.0:
                         continue
-                    upsert_edge(source, target, weight)
-                    upsert_edge(target, source, weight)
+                    upsert_edge(
+                        source,
+                        target,
+                        similarity_score,
+                        amount_affinity=min(similarity_score, 1.0),
+                        similarity_flag=1.0,
+                    )
+                    upsert_edge(
+                        target,
+                        source,
+                        similarity_score,
+                        amount_affinity=min(similarity_score, 1.0),
+                        similarity_flag=1.0,
+                    )
 
     if use_party_edges:
         sender_groups = labeled.groupby("sender").indices
@@ -470,13 +562,27 @@ def build_transaction_graph_from_prepared(
                     for neighbor_index in range(index + 1, upper_bound):
                         target = ordered[neighbor_index]
                         step_gap = abs(float(step_values[source]) - float(step_values[target]))
-                        temporal_weight = 1.0 / (1.0 + min(step_gap, 25.0))
+                        temporal_affinity = 1.0 / (1.0 + min(step_gap, 25.0))
                         amount_gap = abs(float(amount_values[source]) - float(amount_values[target]))
-                        amount_weight = 1.0 / (1.0 + min(amount_gap / 10000.0, 5.0))
+                        amount_affinity = 1.0 / (1.0 + min(amount_gap / 10000.0, 5.0))
                         burst_bonus = 0.35 if step_gap <= 1.0 else 0.0
-                        weight = base_weight + temporal_weight + amount_weight * 0.25 + burst_bonus
-                        upsert_edge(source, target, weight)
-                        upsert_edge(target, source, weight)
+                        weight = base_weight + temporal_affinity + amount_affinity * 0.25 + burst_bonus
+                        upsert_edge(
+                            source,
+                            target,
+                            weight,
+                            temporal_affinity=temporal_affinity,
+                            amount_affinity=amount_affinity,
+                            party_flag=1.0,
+                        )
+                        upsert_edge(
+                            target,
+                            source,
+                            weight,
+                            temporal_affinity=temporal_affinity,
+                            amount_affinity=amount_affinity,
+                            party_flag=1.0,
+                        )
 
     if use_temporal_edges:
         temporal_groups = [
@@ -491,9 +597,22 @@ def build_transaction_graph_from_prepared(
                     step_gap = abs(float(step_values[source]) - float(step_values[target]))
                     if step_gap > 50:
                         continue
-                    temporal_weight = 1.4 + (1.0 / (1.0 + step_gap))
-                    upsert_edge(source, target, temporal_weight)
-                    upsert_edge(target, source, temporal_weight)
+                    temporal_affinity = 1.0 / (1.0 + min(step_gap, 50.0))
+                    temporal_weight = 1.4 + temporal_affinity
+                    upsert_edge(
+                        source,
+                        target,
+                        temporal_weight,
+                        temporal_affinity=temporal_affinity,
+                        temporal_flag=1.0,
+                    )
+                    upsert_edge(
+                        target,
+                        source,
+                        temporal_weight,
+                        temporal_affinity=temporal_affinity,
+                        temporal_flag=1.0,
+                    )
 
         if include_account_nodes:
             account_offset = transaction_node_count
@@ -509,32 +628,92 @@ def build_transaction_graph_from_prepared(
             for transaction_index, row in enumerate(labeled.itertuples(index=False)):
                 sender_node = account_index_map[str(row.sender)]
                 receiver_node = account_index_map[str(row.receiver)]
-                amount_weight = 1.0 + min(float(torch.log1p(torch.tensor(amount_values[transaction_index])).item()) / 5.0, 1.0)
-                time_bonus = 0.4 if transaction_index > 0 and abs(step_values[transaction_index] - step_values[max(0, transaction_index - 1)]) <= 1.0 else 0.0
-                tx_account_weight = 1.35 + amount_weight + time_bonus
-                upsert_edge(transaction_index, sender_node, tx_account_weight)
-                upsert_edge(sender_node, transaction_index, tx_account_weight)
-                upsert_edge(transaction_index, receiver_node, tx_account_weight)
-                upsert_edge(receiver_node, transaction_index, tx_account_weight)
+                amount_affinity = min(float(torch.log1p(torch.tensor(amount_values[transaction_index])).item()) / 10.0, 1.0)
+                temporal_affinity = 1.0 if transaction_index > 0 and abs(step_values[transaction_index] - step_values[max(0, transaction_index - 1)]) <= 1.0 else 0.5
+                tx_account_weight = 1.35 + amount_affinity + (0.4 if temporal_affinity == 1.0 else 0.0)
+                upsert_edge(
+                    transaction_index,
+                    sender_node,
+                    tx_account_weight,
+                    temporal_affinity=temporal_affinity,
+                    amount_affinity=amount_affinity,
+                    account_bridge_flag=1.0,
+                )
+                upsert_edge(
+                    sender_node,
+                    transaction_index,
+                    tx_account_weight,
+                    temporal_affinity=temporal_affinity,
+                    amount_affinity=amount_affinity,
+                    account_bridge_flag=1.0,
+                )
+                upsert_edge(
+                    transaction_index,
+                    receiver_node,
+                    tx_account_weight,
+                    temporal_affinity=temporal_affinity,
+                    amount_affinity=amount_affinity,
+                    account_bridge_flag=1.0,
+                )
+                upsert_edge(
+                    receiver_node,
+                    transaction_index,
+                    tx_account_weight,
+                    temporal_affinity=temporal_affinity,
+                    amount_affinity=amount_affinity,
+                    account_bridge_flag=1.0,
+                )
 
             for (sender, receiver), total_amount in pair_amounts.items():
                 sender_node = account_index_map[str(sender)]
                 receiver_node = account_index_map[str(receiver)]
-                pair_weight = 1.1 + min(float(torch.log1p(torch.tensor(total_amount)).item()) / 6.0, 1.0)
-                upsert_edge(sender_node, receiver_node, pair_weight)
-                upsert_edge(receiver_node, sender_node, pair_weight)
+                amount_affinity = min(float(torch.log1p(torch.tensor(total_amount)).item()) / 10.0, 1.0)
+                pair_weight = 1.1 + amount_affinity
+                upsert_edge(
+                    sender_node,
+                    receiver_node,
+                    pair_weight,
+                    amount_affinity=amount_affinity,
+                    account_bridge_flag=1.0,
+                    party_flag=1.0,
+                )
+                upsert_edge(
+                    receiver_node,
+                    sender_node,
+                    pair_weight,
+                    amount_affinity=amount_affinity,
+                    account_bridge_flag=1.0,
+                    party_flag=1.0,
+                )
 
-    edge_pairs = list(edge_weights.items())
+    edge_pairs = list(edge_records.items())
     edge_index = torch.tensor(
-        [[source, target] for (source, target), _weight in edge_pairs],
+        [[source, target] for (source, target), _payload in edge_pairs],
         dtype=torch.long,
     ).T.contiguous()
     raw_edge_weight = torch.tensor(
-        [max(float(weight), 1e-4) for (_edge, weight) in edge_pairs],
+        [max(float(payload["weight"]), 1e-4) for (_edge, payload) in edge_pairs],
         dtype=torch.float32,
     )
     edge_weight = raw_edge_weight / raw_edge_weight.mean().clamp(min=1.0)
     edge_weight = edge_weight.clamp(min=0.05, max=4.0)
+    edge_attr = torch.tensor(
+        [
+            [
+                0.0,
+                float(payload["temporal_affinity"]),
+                float(payload["amount_affinity"]),
+                float(payload["similarity_flag"]),
+                float(payload["party_flag"]),
+                float(payload["temporal_flag"]),
+                float(payload["account_bridge_flag"]),
+                float(payload["self_loop_flag"]),
+            ]
+            for (_edge, payload) in edge_pairs
+        ],
+        dtype=torch.float32,
+    )
+    edge_attr[:, 0] = edge_weight
 
     train_mask = torch.zeros(node_count, dtype=torch.bool)
     val_mask = torch.zeros(node_count, dtype=torch.bool)
@@ -608,6 +787,7 @@ def build_transaction_graph_from_prepared(
         labels=label_tensor,
         edge_index=edge_index,
         edge_weight=edge_weight,
+        edge_attr=edge_attr,
         transaction_node_count=transaction_node_count,
         train_mask=train_mask,
         val_mask=val_mask,
@@ -834,14 +1014,15 @@ def train_gnn_from_graph(
     labels = graph.labels.to(device)
     edge_index = graph.edge_index.to(device)
     edge_weight = graph.edge_weight.to(device)
+    edge_attr = graph.edge_attr.to(device)
     train_mask = graph.train_mask.to(device)
     val_mask = graph.val_mask.to(device)
     test_mask = graph.test_mask.to(device)
 
     if model_architecture == "gat":
-        model = TransactionGraphGAT(graph.features.shape[1], hidden_dim, dropout=dropout).to(device)
+        model = TransactionGraphGAT(graph.features.shape[1], hidden_dim, graph.edge_attr.shape[1], dropout=dropout).to(device)
     else:
-        model = TransactionGraphSAGE(graph.features.shape[1], hidden_dim, dropout=dropout).to(device)
+        model = TransactionGraphSAGE(graph.features.shape[1], hidden_dim, graph.edge_attr.shape[1], dropout=dropout).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=learning_rate,
@@ -872,7 +1053,7 @@ def train_gnn_from_graph(
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
-        logits = model(features, edge_index, edge_weight)
+        logits = model(features, edge_index, edge_weight, edge_attr)
         supervised_train_mask = build_balanced_train_mask()
         train_logits = logits[supervised_train_mask]
         train_targets = labels[supervised_train_mask]
@@ -896,7 +1077,7 @@ def train_gnn_from_graph(
         if bool(val_mask.any().item()):
             model.eval()
             with torch.no_grad():
-                val_logits = model(features, edge_index, edge_weight)
+                val_logits = model(features, edge_index, edge_weight, edge_attr)
                 val_probabilities = torch.softmax(val_logits[val_mask], dim=1)[:, 1]
                 val_y_true = labels[val_mask]
                 threshold, score = select_threshold(val_probabilities, val_y_true)
@@ -914,7 +1095,7 @@ def train_gnn_from_graph(
     if best_state is not None:
         model.load_state_dict(best_state)
     model.eval()
-    logits = model(features, edge_index, edge_weight)
+    logits = model(features, edge_index, edge_weight, edge_attr)
     calibration_temperature = 1.0
     calibration_bias = 0.0
     if bool(val_mask.any().item()):
@@ -953,6 +1134,7 @@ def train_gnn_from_graph(
                 "input_dim": graph.features.shape[1],
                 "hidden_dim": hidden_dim,
                 "model_type": model_architecture,
+                "edge_feature_dim": int(graph.edge_attr.shape[1]),
             },
             artifact_path,
         )
@@ -990,6 +1172,8 @@ def train_gnn_from_graph(
                 "edge_count": int(graph.edge_index.shape[1]),
                 "mean_edge_weight": round(float(graph.edge_weight.mean().item()), 4),
                 "max_edge_weight": round(float(graph.edge_weight.max().item()), 4),
+                "edge_feature_count": int(graph.edge_attr.shape[1]),
+                "edge_feature_names": EDGE_FEATURE_NAMES,
                 "device": str(device),
             },
         },

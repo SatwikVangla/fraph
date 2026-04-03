@@ -16,7 +16,7 @@ from app.schemas.schema import (
 from app.services.comparison_cache import set_cached_model_result
 from app.services.reporting import generate_model_report
 from app.services.runtime_jobs import create_job, get_job, start_background_job, update_job
-from app.services.gnn_model import train_gnn_model
+from app.services.gnn_model import get_training_device_summary, train_gnn_model
 from app.services.ml_models import train_and_persist_models
 
 router = APIRouter(prefix="/train", tags=["training"])
@@ -95,6 +95,14 @@ def _result_to_response(result: dict[str, object], artifact: ModelArtifactRecord
         report_chart_path=result.get("report_chart_path"),
         details=str(result["details"]),
     )
+
+
+@router.get("/device")
+def get_training_device_status() -> dict[str, object]:
+    return {
+        "status": "completed",
+        "device": get_training_device_summary(),
+    }
 
 
 @router.get("/artifacts/{dataset_id}", response_model=list[ModelArtifactResponse])

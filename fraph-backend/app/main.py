@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,13 +11,19 @@ from app.routes.compare import router as compare_router
 from app.routes.fraud import router as fraud_router
 from app.routes.training import router as training_router
 from app.routes.upload import router as upload_router
+from app.services.gnn_model import get_training_device_summary
 from app.utils.helpers import ensure_runtime_directories
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ensure_runtime_directories()
     init_db()
+    device_summary = get_training_device_summary()
+    logger.warning("FRAPH training device: %s", device_summary)
     yield
 
 
