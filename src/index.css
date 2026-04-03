@@ -332,7 +332,7 @@ canvas {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     radial-gradient(circle at center, rgba(255, 86, 97, 0.12), transparent 24%),
-    linear-gradient(180deg, rgba(34, 8, 10, 0.78), rgba(5, 5, 5, 0.9));
+    linear-gradient(180deg, rgba(34, 8, 10, 0.78), rgba(5, 5, 5, 0.94));
 }
 
 .hero-stage-screen::before {
@@ -343,65 +343,80 @@ canvas {
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 72px 72px;
-  opacity: 0.45;
+  opacity: 0.32;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.radar-orbit,
-.radar-core,
-.signal-column {
+.hero-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.hero-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+
+.hero-scene-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at center, rgba(255, 86, 97, 0.22), transparent 24%),
+    linear-gradient(180deg, rgba(24, 6, 8, 0.74), rgba(5, 5, 5, 0.94));
+}
+
+.hero-scene-fallback-grid,
+.hero-scene-fallback-glow {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-scene-fallback-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  opacity: 0.32;
+}
+
+.hero-scene-fallback-glow {
+  background:
+    radial-gradient(circle at center, rgba(255, 86, 97, 0.2), transparent 32%),
+    radial-gradient(circle at 50% 60%, rgba(125, 12, 20, 0.16), transparent 38%);
+  filter: blur(10px);
+}
+
+.hero-scene-fallback-title {
   position: absolute;
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
-  border-radius: 999px;
+  color: rgba(255, 243, 244, 0.92);
+  font-size: clamp(3.4rem, 8vw, 5.8rem);
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 30px rgba(255, 86, 97, 0.2),
+    0 0 60px rgba(130, 12, 20, 0.18);
 }
-
-.radar-core {
-  width: 180px;
-  height: 180px;
+.hero-stage-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
   background:
-    radial-gradient(circle at 42% 38%, rgba(255, 180, 185, 0.9), rgba(255, 86, 97, 0.45) 32%, transparent 70%);
-  filter: blur(6px);
-  box-shadow:
-    0 0 80px rgba(255, 86, 97, 0.24),
-    0 0 160px rgba(158, 9, 18, 0.2);
-}
-
-.radar-orbit {
-  border: 1px solid rgba(255, 86, 97, 0.22);
-  box-shadow: 0 0 30px rgba(207, 24, 37, 0.12);
-}
-
-.orbit-one {
-  width: 300px;
-  height: 300px;
-  animation: orbit-spin 16s linear infinite;
-}
-
-.orbit-two {
-  width: 460px;
-  height: 240px;
-  animation: orbit-reverse 20s linear infinite;
-}
-
-.signal-column {
-  width: 10px;
-  height: 72%;
-  border-radius: 999px;
-  background: linear-gradient(180deg, transparent, rgba(255, 86, 97, 0.32), transparent);
-  filter: blur(1px);
-}
-
-.signal-column-left {
-  transform: translate(-210px, -50%) rotate(18deg);
-}
-
-.signal-column-right {
-  transform: translate(190px, -50%) rotate(-14deg);
+    radial-gradient(circle at center, transparent 24%, rgba(7, 7, 7, 0.18) 58%, rgba(3, 3, 3, 0.72) 100%),
+    linear-gradient(180deg, rgba(2, 2, 2, 0.08) 0%, rgba(2, 2, 2, 0.34) 100%);
 }
 
 .stage-panel {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(7, 7, 7, 0.52);
   backdrop-filter: blur(14px);
@@ -520,26 +535,6 @@ canvas {
   line-height: 1.7;
 }
 
-@keyframes orbit-spin {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-@keyframes orbit-reverse {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-
-  to {
-    transform: translate(-50%, -50%) rotate(-360deg);
-  }
-}
-
 @media (max-width: 1100px) {
   .hero-main,
   .hero-pillars,
@@ -615,23 +610,6 @@ canvas {
     padding: 16px;
   }
 
-  .signal-column-left {
-    transform: translate(-130px, -50%) rotate(18deg);
-  }
-
-  .signal-column-right {
-    transform: translate(120px, -50%) rotate(-14deg);
-  }
-
-  .orbit-one {
-    width: 220px;
-    height: 220px;
-  }
-
-  .orbit-two {
-    width: 320px;
-    height: 180px;
-  }
 }
 
 .node {

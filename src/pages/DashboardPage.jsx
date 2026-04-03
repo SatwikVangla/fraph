@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [selectedTransactionId, setSelectedTransactionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const hasDatasets = datasets.length > 0;
   const transactionRowRefs = useRef(new Map());
 
   useEffect(() => {
@@ -251,6 +252,12 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
+        {!loading && !error && !hasDatasets ? (
+          <div className="rounded-2xl border border-amber-800 bg-amber-950/20 p-6 text-amber-100">
+            No datasets are available yet. Upload a labeled CSV to populate the dashboard.
+          </div>
+        ) : null}
+
         {!loading && !error && analysis ? (
           <>
             <div className="mb-12 grid gap-6 md:grid-cols-3">
@@ -321,7 +328,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="text-neutral-200">
-                    {analysis.suspicious_transactions.map((transaction) => (
+                    {analysis.suspicious_transactions.length ? analysis.suspicious_transactions.map((transaction) => (
                       <tr
                         key={transaction.transaction_id}
                         ref={(element) => {
@@ -350,7 +357,13 @@ export default function DashboardPage() {
                           {transaction.risk_score}
                         </td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-8 text-center text-neutral-500">
+                          No suspicious transactions matched the current threshold.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -2,15 +2,15 @@ import joblib
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
-from app.services.evaluation import compute_binary_classification_metrics
 from app.services.diagnostics import build_dataset_diagnostics
+from app.services.evaluation import compute_binary_classification_metrics
+from app.services.evaluation_splits import build_time_aware_holdout_split
 from app.services.fraud_detection import get_numeric_feature_frame
 from app.services.gnn_model import (
     build_transaction_graph_from_prepared,
@@ -127,6 +127,31 @@ def prepare_labeled_dataset(dataset_path: str, purpose: str = "training"):
     return labeled, features, labels, diagnostics
 
 
+def _build_evaluation_strategy(labeled: pd.DataFrame, labels: pd.Series) -> dict[str, object]:
+    return build_time_aware_holdout_split(labeled, labels).metadata
+
+
+def _build_time_aware_split_payload(
+    labeled: pd.DataFrame,
+    features: pd.DataFrame,
+    labels: pd.Series,
+) -> tuple[list[int], list[int], pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, dict[str, object]]:
+    split = build_time_aware_holdout_split(labeled, labels)
+    train_indices = split.train_indices
+    test_indices = split.test_indices
+    x_train = features.loc[train_indices]
+    x_test = features.loc[test_indices]
+    y_train = labels.loc[train_indices]
+    y_test = labels.loc[test_indices]
+    return train_indices, test_indices, x_train, x_test, y_train, y_test, split.metadata
+
+
+def _attach_evaluation_strategy(result: dict[str, object], evaluation_strategy: dict[str, object]) -> None:
+    selected_config = dict(result.get("selected_config") or {})
+    selected_config["evaluation_strategy"] = evaluation_strategy
+    result["selected_config"] = selected_config
+
+
 def compare_baseline_models(
     dataset_path: str,
     dataset_name: str | None = None,
@@ -146,17 +171,9 @@ def compare_baseline_models(
             }
         ]
 
-    train_indices, test_indices, _y_train_split, _y_test_split = train_test_split(
-        features.index,
-        labels,
-        test_size=0.25,
-        random_state=42,
-        stratify=labels,
+    train_indices, test_indices, x_train, x_test, y_train, y_test, evaluation_strategy = (
+        _build_time_aware_split_payload(labeled, features, labels)
     )
-    x_train = features.loc[train_indices]
-    x_test = features.loc[test_indices]
-    y_train = labels.loc[train_indices]
-    y_test = labels.loc[test_indices]
 
     model_specs = get_model_specs(labels)
     requested = set(requested_models or model_specs.keys())
@@ -177,6 +194,11 @@ def compare_baseline_models(
                 feature_names=list(features.columns),
             )
             metrics["diagnostics"] = diagnostics
+            metrics["details"] = (
+                "Model evaluated on a chronological holdout split using engineered transaction "
+                "features only."
+            )
+            _attach_evaluation_strategy(metrics, evaluation_strategy)
             results.append(metrics)
         except Exception as exc:
             results.append(
@@ -238,10 +260,11 @@ def compare_baseline_models(
                 "include_account_nodes": GNN_COMPARE_CONFIG["include_account_nodes"],
                 "model_architecture": GNN_COMPARE_CONFIG["model_architecture"],
                 "selected_seed": GNN_COMPARE_CONFIG["seed_candidates"][0],
+                "evaluation_strategy": evaluation_strategy,
             }
             gnn_result["details"] = (
-                "Stable GraphSAGE comparison profile using the strongest validated "
-                "relationship-aware graph configuration for dashboard and compare flows."
+                "Stable weighted-message-passing GNN comparison profile on a chronological holdout "
+                "split with transaction, party, and temporal graph structure enabled."
             )
             gnn_result["diagnostics"] = diagnostics
             results.append(gnn_result)
@@ -277,12 +300,8 @@ def train_and_persist_models(
         purpose="training",
     )
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        features,
-        labels,
-        test_size=0.25,
-        random_state=42,
-        stratify=labels,
+    _train_indices, _test_indices, x_train, x_test, y_train, y_test, evaluation_strategy = (
+        _build_time_aware_split_payload(labeled, features, labels)
     )
 
     model_specs = get_model_specs(labels)
@@ -315,8 +334,10 @@ def train_and_persist_models(
             metrics["artifact_path"] = str(artifact_path)
             metrics["diagnostics"] = diagnostics
             metrics["details"] = (
-                "Model trained and persisted on engineered transaction features."
+                "Model trained and persisted on engineered transaction features using a "
+                "chronological holdout evaluation split."
             )
+            _attach_evaluation_strategy(metrics, evaluation_strategy)
             results.append(metrics)
         except Exception as exc:
             results.append(

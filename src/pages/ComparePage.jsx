@@ -23,7 +23,9 @@ export default function ComparePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
-  const selectedDatasetId = datasetId ? Number(datasetId) : null;
+  const routeDatasetId = datasetId ? Number(datasetId) : null;
+  const activeDatasetId = routeDatasetId ?? comparison?.dataset?.id ?? location.state?.dataset?.id ?? null;
+  const activeDatasetName = comparison?.dataset?.name ?? location.state?.dataset?.name ?? null;
   const compareModelNames = [
     "knn",
     "logistic_regression",
@@ -31,15 +33,29 @@ export default function ComparePage() {
     "gaussian_nb",
     "gnn",
   ];
+  const gnnComparisonResult = comparison?.model_results?.find((result) => result.model_name === "gnn") ?? null;
+  const gnnTrainingResult = trainingResults.find((result) => result.model_name === "gnn") ?? null;
 
-  async function refreshComparison(active = true) {
+  async function refreshComparison(active = true, preferredDataset = null) {
     try {
       setLoading(true);
       setError("");
 
-      const payload = selectedDatasetId
-        ? { dataset_id: selectedDatasetId }
-        : { dataset_name: location.state?.dataset?.name };
+      const preferredDatasetId = preferredDataset?.id ?? null;
+      const preferredDatasetName = preferredDataset?.name ?? null;
+      const payload = activeDatasetId || preferredDatasetId
+        ? { dataset_id: activeDatasetId ?? preferredDatasetId }
+        : activeDatasetName || preferredDatasetName
+          ? { dataset_name: activeDatasetName ?? preferredDatasetName }
+          : null;
+
+      if (!payload) {
+        if (active) {
+          setComparison(null);
+          setTrainingResults([]);
+        }
+        return;
+      }
 
       const response = await apiRequest("/compare/", {
         method: "POST",
@@ -60,11 +76,15 @@ export default function ComparePage() {
     }
   }
 
-  async function refreshArtifacts(active = true) {
-    if (!selectedDatasetId) {
+  async function refreshArtifacts(active = true, preferredDatasetId = null) {
+    const artifactDatasetId = activeDatasetId ?? preferredDatasetId;
+    if (!artifactDatasetId) {
+      if (active) {
+        setTrainingResults([]);
+      }
       return;
     }
-    const artifacts = await apiRequest(`/train/artifacts/${selectedDatasetId}`);
+    const artifacts = await apiRequest(`/train/artifacts/${artifactDatasetId}`);
     if (active) {
       setTrainingResults(artifacts);
     }
@@ -73,21 +93,30 @@ export default function ComparePage() {
   useEffect(() => {
     let active = true;
 
-    async function loadDatasets() {
+    async function loadPage() {
       try {
         const response = await apiRequest("/upload/datasets");
         if (!active) {
           return;
         }
         setDatasets(response);
-      } catch {
-        // Keep the page usable even if the selector cannot load.
-      }
-    }
 
-    async function loadComparison() {
-      try {
-        await refreshComparison(active);
+        const fallbackDataset =
+          response.find((item) => item.id === routeDatasetId) ??
+          location.state?.dataset ??
+          response[0] ??
+          null;
+
+        if (!routeDatasetId && !location.state?.dataset?.name && fallbackDataset) {
+          navigate(`/compare/${fallbackDataset.id}`, {
+            replace: true,
+            state: { dataset: fallbackDataset },
+          });
+          return;
+        }
+
+        await refreshComparison(active, fallbackDataset);
+        await refreshArtifacts(active, fallbackDataset?.id ?? null);
       } catch (requestError) {
         if (active) {
           setError(
@@ -95,37 +124,32 @@ export default function ComparePage() {
               ? requestError.message
               : "Failed to load model comparison.",
           );
+          setLoading(false);
         }
       }
     }
 
-    async function loadArtifacts() {
-      if (!selectedDatasetId) {
-        return;
-      }
-      try {
-        await refreshArtifacts(active);
-      } catch {
-        // Keep the comparison page usable even if there are no saved artifacts yet.
-      }
-    }
-
-    loadDatasets();
-    loadComparison();
-    loadArtifacts();
+    loadPage();
     return () => {
       active = false;
     };
-  }, [selectedDatasetId, location.state?.dataset?.name]);
+  }, [routeDatasetId, location.state?.dataset?.id, location.state?.dataset?.name, navigate]);
 
   async function handleTraining() {
+    const payload = activeDatasetId
+      ? { dataset_id: activeDatasetId }
+      : activeDatasetName
+        ? { dataset_name: activeDatasetName }
+        : null;
+
+    if (!payload) {
+      setError("Select or upload a dataset before training models.");
+      return;
+    }
+
     try {
       setTraining(true);
       setError("");
-
-      const payload = selectedDatasetId
-        ? { dataset_id: selectedDatasetId }
-        : { dataset_name: location.state?.dataset?.name };
 
       const response = await apiRequest("/train/jobs", {
         method: "POST",
@@ -183,7 +207,7 @@ export default function ComparePage() {
     }, 1500);
 
     return () => window.clearInterval(intervalId);
-  }, [job]);
+  }, [job, activeDatasetId, activeDatasetName]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black px-6 py-10 text-white md:px-12">
@@ -231,7 +255,7 @@ export default function ComparePage() {
                 </label>
                 <select
                   id="compare-dataset"
-                  value={selectedDatasetId ?? ""}
+                  value={activeDatasetId ?? ""}
                   onChange={(event) => {
                     const nextDataset = datasets.find(
                       (item) => item.id === Number(event.target.value),
@@ -263,10 +287,17 @@ export default function ComparePage() {
           </Link>
         </div>
 
+        {!datasets.length && !loading ? (
+          <div className="mb-8 rounded-2xl border border-amber-800 bg-amber-950/20 p-6 text-amber-100">
+            No uploaded datasets are available yet. Upload a labeled CSV before running the
+            comparison and GNN training flow.
+          </div>
+        ) : null}
+
         <div className="mb-8 flex flex-wrap gap-4">
           <button
             onClick={handleTraining}
-            disabled={training || loading}
+            disabled={training || loading || !activeDatasetId}
             className="inline-flex items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {training ? "Training Models..." : "Train And Save Models"}
@@ -394,23 +425,28 @@ export default function ComparePage() {
                         <p className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
                           {result.status}
                         </p>
-                      <p className="mt-2 text-xs text-neutral-500">{result.details}</p>
-                      {result.selected_config ? (
-                          <p className="mt-2 text-xs text-red-400">
-                            Config: {JSON.stringify(result.selected_config)}
+                        <p className="mt-2 text-xs text-neutral-500">{result.details}</p>
+                        {result.selected_config ? (
+                          <div className="mt-2 text-xs text-red-400">
+                            <p>Evaluation: {formatEvaluationLabel(result.selected_config?.evaluation_strategy)}</p>
+                            {result.model_name === "gnn" ? (
+                              <p className="mt-1">
+                                {formatArchitectureLabel(result.selected_config?.model_architecture)} | Hidden {result.selected_config?.hidden_dim ?? "--"} | Epochs {result.selected_config?.epochs ?? "--"}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {result.model_name === "gnn" ? (
+                          <p className="mt-2 text-xs text-neutral-400">
+                            Models linked users, counterparties, and transaction edges instead of
+                            scoring rows independently.
                           </p>
-                      ) : null}
-                      {result.model_name === "gnn" ? (
-                        <p className="mt-2 text-xs text-neutral-400">
-                          Models linked users, counterparties, and transaction edges instead of
-                          scoring rows independently.
-                        </p>
-                      ) : (
-                        <p className="mt-2 text-xs text-neutral-400">
-                          Non-graph baseline on transaction features only.
-                        </p>
-                      )}
-                    </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-neutral-400">
+                            Non-graph baseline on transaction features only.
+                          </p>
+                        )}
+                      </div>
                       <MetricCell value={result.accuracy} />
                       <MetricCell value={result.precision} />
                       <MetricCell value={result.recall} />
@@ -436,11 +472,16 @@ export default function ComparePage() {
                 </div>
               </div>
             </div>
+
+            {gnnComparisonResult ? (
+              <GnnEvidencePanel title="GNN Comparison Evidence" result={gnnComparisonResult} />
+            ) : null}
           </>
         ) : null}
 
         {trainingResults.length ? (
-          <div className="mt-10 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
+          <>
+            <div className="mt-10 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
             <div className="border-b border-neutral-800 px-6 py-5">
               <h2 className="text-2xl font-bold">Persisted Training Runs</h2>
             </div>
@@ -485,8 +526,137 @@ export default function ComparePage() {
               </div>
             </div>
           </div>
+
+            {gnnTrainingResult ? (
+              <GnnEvidencePanel title="Persisted GNN Training Run" result={gnnTrainingResult} />
+            ) : null}
+          </>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function formatArchitectureLabel(value) {
+  if (!value) {
+    return "Architecture --";
+  }
+
+  return `Architecture ${String(value).toUpperCase()}`;
+}
+
+function formatEvaluationLabel(strategy) {
+  if (!strategy) {
+    return "Standard holdout";
+  }
+
+  if (strategy.name === "time_aware_holdout") {
+    const trainRange = `${strategy.train_step_min ?? "--"}-${strategy.train_step_max ?? "--"}`;
+    const testRange = `${strategy.test_step_min ?? "--"}-${strategy.test_step_max ?? "--"}`;
+    return `Chronological holdout | train ${trainRange} | test ${testRange}`;
+  }
+
+  return strategy.name ?? "Standard holdout";
+}
+
+function formatToggleLabel(label, enabled) {
+  return `${label}: ${enabled ? "On" : "Off"}`;
+}
+
+function GnnEvidencePanel({ title, result }) {
+  const config = result?.selected_config ?? {};
+  const graphSummary = result?.explainability?.graph_summary ?? {};
+  const evaluationStrategy = config.evaluation_strategy ?? {};
+  const ablationSummary = result?.explainability?.ablation_summary ?? [];
+
+  return (
+    <div className="mt-8 rounded-2xl border border-red-900/60 bg-neutral-950/95 p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm uppercase tracking-[0.28em] text-red-400">Graph Model Evidence</p>
+          <h2 className="mt-2 text-2xl font-bold text-white">{title}</h2>
+          <p className="mt-2 max-w-3xl text-sm text-neutral-400">
+            Architecture, device, graph construction, and chronological evaluation details for the weighted-message-passing GNN.
+          </p>
+        </div>
+        <div className="rounded-xl border border-neutral-800 bg-black/40 px-4 py-3 text-xs uppercase tracking-[0.24em] text-neutral-300">
+          {formatArchitectureLabel(config.model_architecture)}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-5">
+        <MetricCard label="Device" value={graphSummary.device ?? "--"} />
+        <MetricCard label="Total Nodes" value={graphSummary.total_nodes ?? "--"} />
+        <MetricCard label="Edges" value={graphSummary.edge_count ?? "--"} />
+        <MetricCard label="Mean Edge Weight" value={graphSummary.mean_edge_weight ?? "--"} />
+        <MetricCard label="Max Edge Weight" value={graphSummary.max_edge_weight ?? "--"} />
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl border border-neutral-800 bg-black/30 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">Evaluation Strategy</p>
+          <p className="mt-3 text-sm text-white">{formatEvaluationLabel(evaluationStrategy)}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-neutral-800 bg-neutral-950/80 p-4 text-sm text-neutral-300">
+              Train rows: {evaluationStrategy.train_rows ?? "--"}
+            </div>
+            <div className="rounded-xl border border-neutral-800 bg-neutral-950/80 p-4 text-sm text-neutral-300">
+              Test rows: {evaluationStrategy.test_rows ?? "--"}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-800 bg-black/30 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">Graph Construction</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-neutral-200">
+            <span className="rounded-full border border-red-900/70 px-3 py-2">
+              {formatToggleLabel("Similarity", config.use_similarity_edges)}
+            </span>
+            <span className="rounded-full border border-red-900/70 px-3 py-2">
+              {formatToggleLabel("Party", config.use_party_edges)}
+            </span>
+            <span className="rounded-full border border-red-900/70 px-3 py-2">
+              {formatToggleLabel("Temporal", config.use_temporal_edges)}
+            </span>
+            <span className="rounded-full border border-red-900/70 px-3 py-2">
+              {formatToggleLabel("Accounts", config.include_account_nodes)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {ablationSummary.length ? (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-neutral-800 bg-black/30">
+          <div className="border-b border-neutral-800 px-5 py-4">
+            <h3 className="text-lg font-semibold text-white">Ablation Snapshot</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[720px]">
+              <div className="grid grid-cols-6 gap-4 border-b border-neutral-800 px-5 py-3 text-xs font-bold uppercase tracking-[0.22em] text-neutral-500">
+                <span>Variant</span>
+                <span>Arch</span>
+                <span>F1</span>
+                <span>PR AUC</span>
+                <span>ROC AUC</span>
+                <span>MCC</span>
+              </div>
+              {ablationSummary.map((item) => (
+                <div
+                  key={`${title}-${item.name}`}
+                  className="grid grid-cols-6 gap-4 border-b border-neutral-900 px-5 py-4 text-sm text-neutral-200 last:border-b-0"
+                >
+                  <span>{item.label}</span>
+                  <span>{String(item.architecture ?? "--").toUpperCase()}</span>
+                  <span>{item.f1_score ?? "--"}</span>
+                  <span>{item.pr_auc ?? "--"}</span>
+                  <span>{item.roc_auc ?? "--"}</span>
+                  <span>{item.mcc ?? "--"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

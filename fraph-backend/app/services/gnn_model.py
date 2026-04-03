@@ -5,12 +5,22 @@ import pandas as pd
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch_geometric.nn import GATConv, LayerNorm, SAGEConv
+from torch_geometric.nn import GATConv, GraphConv, LayerNorm
 
+from app.services.diagnostics import build_dataset_diagnostics
 from app.services.evaluation import compute_binary_classification_metrics
+from app.services.evaluation_splits import build_time_aware_holdout_split
 from app.services.fraud_detection import get_numeric_feature_frame
 from app.services.preprocessing import preprocess_dataset
 from app.utils.helpers import build_model_storage_path
+
+
+def _get_training_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 
 @dataclass
@@ -19,6 +29,7 @@ class GraphData:
     feature_names: list[str]
     labels: torch.Tensor
     edge_index: torch.Tensor
+    edge_weight: torch.Tensor
     transaction_node_count: int
     train_mask: torch.Tensor
     val_mask: torch.Tensor
@@ -33,10 +44,10 @@ class TransactionGraphSAGE(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout),
         )
-        self.conv1 = SAGEConv(hidden_dim, hidden_dim)
-        self.conv2 = SAGEConv(hidden_dim, hidden_dim)
-        self.conv3 = SAGEConv(hidden_dim, hidden_dim)
-        self.conv4 = SAGEConv(hidden_dim, hidden_dim)
+        self.conv1 = GraphConv(hidden_dim, hidden_dim)
+        self.conv2 = GraphConv(hidden_dim, hidden_dim)
+        self.conv3 = GraphConv(hidden_dim, hidden_dim)
+        self.conv4 = GraphConv(hidden_dim, hidden_dim)
         self.norm1 = LayerNorm(hidden_dim)
         self.norm2 = LayerNorm(hidden_dim)
         self.norm3 = LayerNorm(hidden_dim)
@@ -58,24 +69,29 @@ class TransactionGraphSAGE(nn.Module):
         )
         self.dropout = dropout
 
-    def forward(self, inputs: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_weight: torch.Tensor,
+    ) -> torch.Tensor:
         encoded_inputs = self.input_encoder(inputs)
-        hidden = self.conv1(encoded_inputs, edge_index)
+        hidden = self.conv1(encoded_inputs, edge_index, edge_weight)
         hidden = self.norm1(hidden + encoded_inputs)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
         residual_hidden = hidden
-        hidden = self.conv2(hidden, edge_index)
+        hidden = self.conv2(hidden, edge_index, edge_weight)
         hidden = self.norm2(hidden + residual_hidden)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
         residual_hidden = hidden
-        hidden = self.conv3(hidden, edge_index)
+        hidden = self.conv3(hidden, edge_index, edge_weight)
         hidden = self.norm3(hidden + residual_hidden)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
         residual_hidden = hidden
-        hidden = self.conv4(hidden, edge_index)
+        hidden = self.conv4(hidden, edge_index, edge_weight)
         hidden = self.norm4(hidden + residual_hidden)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
@@ -101,8 +117,8 @@ class TransactionGraphGAT(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout),
         )
-        self.conv1 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout)
-        self.conv2 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout)
+        self.conv1 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout, edge_dim=1)
+        self.conv2 = GATConv(hidden_dim, hidden_dim // 4, heads=4, dropout=dropout, edge_dim=1)
         self.norm1 = LayerNorm(hidden_dim)
         self.norm2 = LayerNorm(hidden_dim)
         self.classifier = nn.Sequential(
@@ -113,13 +129,19 @@ class TransactionGraphGAT(nn.Module):
         )
         self.dropout = dropout
 
-    def forward(self, inputs: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_weight: torch.Tensor,
+    ) -> torch.Tensor:
         encoded = self.input_encoder(inputs)
-        hidden = self.conv1(encoded, edge_index)
+        edge_attr = edge_weight.unsqueeze(-1)
+        hidden = self.conv1(encoded, edge_index, edge_attr=edge_attr)
         hidden = self.norm1(hidden + encoded)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
-        hidden = self.conv2(hidden, edge_index)
+        hidden = self.conv2(hidden, edge_index, edge_attr=edge_attr)
         hidden = self.norm2(hidden + encoded)
         hidden = F.gelu(hidden)
         hidden = F.dropout(hidden, p=self.dropout, training=self.training)
@@ -502,13 +524,17 @@ def build_transaction_graph_from_prepared(
                 upsert_edge(sender_node, receiver_node, pair_weight)
                 upsert_edge(receiver_node, sender_node, pair_weight)
 
-    edge_indices: list[list[int]] = []
-    for (source, target), weight in edge_weights.items():
-        repeat_count = max(1, min(int(round(weight)), 4))
-        for _ in range(repeat_count):
-            edge_indices.append([source, target])
-
-    edge_index = torch.tensor(edge_indices, dtype=torch.long).T.contiguous()
+    edge_pairs = list(edge_weights.items())
+    edge_index = torch.tensor(
+        [[source, target] for (source, target), _weight in edge_pairs],
+        dtype=torch.long,
+    ).T.contiguous()
+    raw_edge_weight = torch.tensor(
+        [max(float(weight), 1e-4) for (_edge, weight) in edge_pairs],
+        dtype=torch.float32,
+    )
+    edge_weight = raw_edge_weight / raw_edge_weight.mean().clamp(min=1.0)
+    edge_weight = edge_weight.clamp(min=0.05, max=4.0)
 
     train_mask = torch.zeros(node_count, dtype=torch.bool)
     val_mask = torch.zeros(node_count, dtype=torch.bool)
@@ -581,6 +607,7 @@ def build_transaction_graph_from_prepared(
         feature_names=feature_names,
         labels=label_tensor,
         edge_index=edge_index,
+        edge_weight=edge_weight,
         transaction_node_count=transaction_node_count,
         train_mask=train_mask,
         val_mask=val_mask,
@@ -697,12 +724,12 @@ def train_gnn_from_graph(
     model_architecture: str = "graphsage",
 ) -> dict[str, object]:
     def build_balanced_train_mask() -> torch.Tensor:
-        train_indices = torch.nonzero(graph.train_mask, as_tuple=False).view(-1)
-        train_targets = graph.labels[train_indices]
+        train_indices = torch.nonzero(train_mask, as_tuple=False).view(-1)
+        train_targets = labels[train_indices]
         positive_indices = train_indices[train_targets == 1]
         negative_indices = train_indices[train_targets == 0]
         if len(positive_indices) == 0 or len(negative_indices) == 0:
-            return graph.train_mask
+            return train_mask
 
         negative_sample_size = min(
             len(negative_indices),
@@ -710,7 +737,7 @@ def train_gnn_from_graph(
         )
         sampled_negative_order = torch.randperm(len(negative_indices))[:negative_sample_size]
         sampled_indices = torch.cat([positive_indices, negative_indices[sampled_negative_order]])
-        balanced_mask = torch.zeros_like(graph.train_mask)
+        balanced_mask = torch.zeros_like(train_mask)
         balanced_mask[sampled_indices] = True
         return balanced_mask
 
@@ -799,10 +826,22 @@ def train_gnn_from_graph(
         return best_temperature, best_bias
 
     torch.manual_seed(random_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(random_seed)
+
+    device = _get_training_device()
+    features = graph.features.to(device)
+    labels = graph.labels.to(device)
+    edge_index = graph.edge_index.to(device)
+    edge_weight = graph.edge_weight.to(device)
+    train_mask = graph.train_mask.to(device)
+    val_mask = graph.val_mask.to(device)
+    test_mask = graph.test_mask.to(device)
+
     if model_architecture == "gat":
-        model = TransactionGraphGAT(graph.features.shape[1], hidden_dim, dropout=dropout)
+        model = TransactionGraphGAT(graph.features.shape[1], hidden_dim, dropout=dropout).to(device)
     else:
-        model = TransactionGraphSAGE(graph.features.shape[1], hidden_dim, dropout=dropout)
+        model = TransactionGraphSAGE(graph.features.shape[1], hidden_dim, dropout=dropout).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=learning_rate,
@@ -812,14 +851,14 @@ def train_gnn_from_graph(
         optimizer,
         T_max=max(epochs, 1),
     )
-    train_labels = graph.labels[graph.train_mask]
+    train_labels = labels[train_mask]
     if use_class_weights:
         class_counts = torch.bincount(train_labels, minlength=2).float()
         class_weights = torch.where(
             class_counts > 0,
             train_labels.shape[0] / (2.0 * class_counts),
             torch.ones_like(class_counts),
-        )
+        ).to(device)
         criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.02)
     else:
         criterion = nn.CrossEntropyLoss(label_smoothing=0.02)
@@ -833,10 +872,10 @@ def train_gnn_from_graph(
     for epoch in range(epochs):
         model.train()
         optimizer.zero_grad()
-        logits = model(graph.features, graph.edge_index)
+        logits = model(features, edge_index, edge_weight)
         supervised_train_mask = build_balanced_train_mask()
         train_logits = logits[supervised_train_mask]
-        train_targets = graph.labels[supervised_train_mask]
+        train_targets = labels[supervised_train_mask]
         loss = criterion(train_logits, train_targets)
 
         probabilities = torch.softmax(train_logits, dim=1)[:, 1]
@@ -854,12 +893,12 @@ def train_gnn_from_graph(
         optimizer.step()
         scheduler.step()
 
-        if bool(graph.val_mask.any().item()):
+        if bool(val_mask.any().item()):
             model.eval()
             with torch.no_grad():
-                val_logits = model(graph.features, graph.edge_index)
-                val_probabilities = torch.softmax(val_logits[graph.val_mask], dim=1)[:, 1]
-                val_y_true = graph.labels[graph.val_mask]
+                val_logits = model(features, edge_index, edge_weight)
+                val_probabilities = torch.softmax(val_logits[val_mask], dim=1)[:, 1]
+                val_y_true = labels[val_mask]
                 threshold, score = select_threshold(val_probabilities, val_y_true)
                 if score > best_score:
                     best_score = score
@@ -875,32 +914,32 @@ def train_gnn_from_graph(
     if best_state is not None:
         model.load_state_dict(best_state)
     model.eval()
-    logits = model(graph.features, graph.edge_index)
+    logits = model(features, edge_index, edge_weight)
     calibration_temperature = 1.0
     calibration_bias = 0.0
-    if bool(graph.val_mask.any().item()):
-        with torch.no_grad():
+    if bool(val_mask.any().item()):
+        with torch.inference_mode():
             calibration_temperature, calibration_bias = calibrate_probabilities(
-                logits[graph.val_mask],
-                graph.labels[graph.val_mask],
+                logits[val_mask],
+                labels[val_mask],
             )
             val_margin = (
-                (logits[graph.val_mask][:, 1] - logits[graph.val_mask][:, 0])
+                (logits[val_mask][:, 1] - logits[val_mask][:, 0])
                 / calibration_temperature
             ) + calibration_bias
             recalibration_probabilities = torch.sigmoid(val_margin)
-            recalibration_targets = graph.labels[graph.val_mask]
+            recalibration_targets = labels[val_mask]
             best_threshold, _ = select_threshold(
                 recalibration_probabilities,
                 recalibration_targets,
             )
     test_margin = (
-        (logits[graph.test_mask][:, 1] - logits[graph.test_mask][:, 0])
+        (logits[test_mask][:, 1] - logits[test_mask][:, 0])
         / calibration_temperature
     ) + calibration_bias
     probabilities = torch.sigmoid(test_margin)
     predictions = (probabilities >= best_threshold).long()
-    y_true = graph.labels[graph.test_mask]
+    y_true = labels[test_mask]
     probabilities_np = probabilities.detach().cpu().numpy()
     predictions_np = predictions.detach().cpu().numpy()
     y_true_np = y_true.detach().cpu().numpy()
@@ -949,6 +988,9 @@ def train_gnn_from_graph(
                 "transaction_nodes": int(graph.transaction_node_count),
                 "total_nodes": int(graph.features.shape[0]),
                 "edge_count": int(graph.edge_index.shape[1]),
+                "mean_edge_weight": round(float(graph.edge_weight.mean().item()), 4),
+                "max_edge_weight": round(float(graph.edge_weight.max().item()), 4),
+                "device": str(device),
             },
         },
     }
@@ -1058,9 +1100,9 @@ def tune_and_train_gnn_from_prepared(
             use_temporal_edges=final_graph_key[2],
             include_account_nodes=final_graph_key[3],
         )
-    final_training_epochs = max(
+    final_training_epochs = min(
         int(epochs),
-        min(int(best_trial_config.get("epochs", epochs)), 24),
+        max(int(best_trial_config.get("epochs", epochs)), 24),
     )
     selected_seeds = seed_candidates or [42, 52, 62]
     best_seed_result: dict[str, object] | None = None
@@ -1132,8 +1174,9 @@ def tune_and_train_gnn_from_prepared(
         "selected_seed": best_seed,
         "candidate_seeds": selected_seeds,
     }
+    selected_architecture = str(best_trial_config.get("model_architecture", "graphsage")).upper()
     final_result["details"] = (
-        "Transaction-account GraphSAGE trained with automatic tuning over graph structure "
+        f"Transaction-account {selected_architecture} trained with automatic tuning over graph structure "
         f"and hyperparameters. Selected config: {final_result['selected_config']}."
     )
     if best_trial_result is not None:
@@ -1197,6 +1240,120 @@ def quick_train_gnn_from_prepared(
     return result
 
 
+def _build_gnn_ablation_summary(
+    prepared: pd.DataFrame,
+    dataset_name: str,
+    train_indices: list[int],
+    test_indices: list[int],
+    max_nodes: int | None,
+    epochs: int,
+    hidden_dim: int,
+    learning_rate: float,
+    dropout: float,
+    use_class_weights: bool,
+    use_similarity_edges: bool,
+    use_party_edges: bool,
+    selected_architecture: str,
+) -> list[dict[str, object]]:
+    alternate_architecture = "gat" if selected_architecture == "graphsage" else "graphsage"
+    ablation_epochs = max(18, min(int(epochs), 32))
+    variants = [
+        {
+            "name": f"full_graph_{selected_architecture}",
+            "label": f"Full graph ({selected_architecture.upper()})",
+            "model_architecture": selected_architecture,
+            "use_similarity_edges": use_similarity_edges,
+            "use_party_edges": use_party_edges,
+            "use_temporal_edges": True,
+            "include_account_nodes": True,
+        },
+        {
+            "name": "no_similarity_edges",
+            "label": "No similarity edges",
+            "model_architecture": selected_architecture,
+            "use_similarity_edges": False,
+            "use_party_edges": use_party_edges,
+            "use_temporal_edges": True,
+            "include_account_nodes": True,
+        },
+        {
+            "name": "no_temporal_edges",
+            "label": "No temporal edges",
+            "model_architecture": selected_architecture,
+            "use_similarity_edges": use_similarity_edges,
+            "use_party_edges": use_party_edges,
+            "use_temporal_edges": False,
+            "include_account_nodes": True,
+        },
+        {
+            "name": "no_account_nodes",
+            "label": "No account nodes",
+            "model_architecture": selected_architecture,
+            "use_similarity_edges": use_similarity_edges,
+            "use_party_edges": use_party_edges,
+            "use_temporal_edges": True,
+            "include_account_nodes": False,
+        },
+        {
+            "name": f"full_graph_{alternate_architecture}",
+            "label": f"Full graph ({alternate_architecture.upper()})",
+            "model_architecture": alternate_architecture,
+            "use_similarity_edges": use_similarity_edges,
+            "use_party_edges": use_party_edges,
+            "use_temporal_edges": True,
+            "include_account_nodes": True,
+        },
+    ]
+    ablation_results: list[dict[str, object]] = []
+    for variant in variants:
+        graph = build_transaction_graph_from_prepared(
+            prepared=prepared,
+            train_indices=train_indices,
+            test_indices=test_indices,
+            max_nodes=max_nodes,
+            use_similarity_edges=bool(variant["use_similarity_edges"]),
+            use_party_edges=bool(variant["use_party_edges"]),
+            use_temporal_edges=bool(variant["use_temporal_edges"]),
+            include_account_nodes=bool(variant["include_account_nodes"]),
+        )
+        result = train_gnn_from_graph(
+            graph=graph,
+            dataset_name=dataset_name,
+            epochs=ablation_epochs,
+            learning_rate=learning_rate,
+            hidden_dim=hidden_dim,
+            artifact_name=f"gnn-{variant['name']}",
+            persist_artifact=False,
+            include_raw_outputs=False,
+            use_class_weights=use_class_weights,
+            dropout=dropout,
+            random_seed=42,
+            model_architecture=str(variant["model_architecture"]),
+        )
+        ablation_results.append(
+            {
+                "name": variant["name"],
+                "label": variant["label"],
+                "architecture": str(variant["model_architecture"]),
+                "f1_score": result.get("f1_score"),
+                "pr_auc": result.get("pr_auc"),
+                "roc_auc": result.get("roc_auc"),
+                "mcc": result.get("mcc"),
+                "threshold": result.get("threshold"),
+            }
+        )
+    return sorted(
+        ablation_results,
+        key=lambda item: (
+            float(item.get("f1_score") or 0.0),
+            float(item.get("pr_auc") or 0.0),
+            float(item.get("mcc") or 0.0),
+        ),
+        reverse=True,
+    )
+
+
+
 def train_gnn_model(
     dataset_path: str,
     dataset_name: str,
@@ -1216,9 +1373,24 @@ def train_gnn_model(
         "full": None,
     }
     prepared = preprocess_dataset(dataset_path)[0]
-    return tune_and_train_gnn_from_prepared(
-        prepared=prepared,
+    if "label" not in prepared.columns or prepared["label"].dropna().empty:
+        raise ValueError("GNN training requires a labeled fraud column.")
+
+    labeled = prepared.dropna(subset=["label"]).copy().reset_index(drop=True)
+    labeled["label"] = labeled["label"].astype(bool)
+    if labeled["label"].nunique() < 2 or len(labeled) < 10:
+        raise ValueError(
+            "Need at least 10 labeled rows with both fraud and non-fraud classes for GNN training."
+        )
+
+    labels = labeled["label"].astype(int)
+    split = build_time_aware_holdout_split(labeled, labels)
+    max_nodes = sampling_caps.get(sampling_preset, 4096)
+    result = tune_and_train_gnn_from_prepared(
+        prepared=labeled,
         dataset_name=dataset_name,
+        train_indices=split.train_indices,
+        test_indices=split.test_indices,
         epochs=epochs,
         learning_rate=learning_rate,
         hidden_dim=hidden_dim,
@@ -1226,8 +1398,36 @@ def train_gnn_model(
         persist_artifact=True,
         use_class_weights=use_class_weights,
         dropout=dropout,
-        max_nodes=sampling_caps.get(sampling_preset, 4096),
+        max_nodes=max_nodes,
     )
+    selected_config = dict(result.get("selected_config") or {})
+    selected_config["evaluation_strategy"] = split.metadata
+    result["selected_config"] = selected_config
+    result["diagnostics"] = build_dataset_diagnostics(labeled)
+
+    selected_architecture = str(selected_config.get("model_architecture", "graphsage"))
+    explainability = dict(result.get("explainability") or {})
+    explainability["ablation_summary"] = _build_gnn_ablation_summary(
+        prepared=labeled,
+        dataset_name=dataset_name,
+        train_indices=split.train_indices,
+        test_indices=split.test_indices,
+        max_nodes=max_nodes,
+        epochs=epochs,
+        hidden_dim=int(selected_config.get("hidden_dim", hidden_dim)),
+        learning_rate=float(selected_config.get("learning_rate", learning_rate)),
+        dropout=float(selected_config.get("dropout", dropout)),
+        use_class_weights=use_class_weights,
+        use_similarity_edges=use_similarity_edges,
+        use_party_edges=use_party_edges,
+        selected_architecture=selected_architecture,
+    )
+    result["explainability"] = explainability
+    result["details"] = (
+        f"{result.get('details', '')} Chronological holdout evaluation metadata and graph ablation "
+        "results are included for review."
+    ).strip()
+    return result
 
 
 def load_gnn_model(model_path: str) -> dict[str, str]:

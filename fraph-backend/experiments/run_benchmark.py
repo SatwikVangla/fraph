@@ -22,9 +22,8 @@ from sklearn.metrics import (
     precision_recall_curve,
     roc_curve,
 )
-from sklearn.model_selection import RepeatedStratifiedKFold
-
 from app.services.gnn_model import tune_and_train_gnn_from_prepared
+from app.services.evaluation_splits import build_time_aware_folds
 from app.services.ml_models import (
     evaluate_model,
     get_model_probabilities,
@@ -51,7 +50,7 @@ DEFAULT_MODELS = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run paper-style repeated stratified evaluation for FRAPH models.",
+        description="Run chronological evaluation for FRAPH models.",
     )
     parser.add_argument("--dataset", required=True, help="Path to a labeled CSV dataset.")
     parser.add_argument(
@@ -60,8 +59,8 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MODELS,
         help="Models to evaluate.",
     )
-    parser.add_argument("--folds", type=int, default=5, help="Number of CV folds.")
-    parser.add_argument("--repeats", type=int, default=3, help="Number of repeated CV rounds.")
+    parser.add_argument("--folds", type=int, default=3, help="Number of chronological evaluation folds.")
+    parser.add_argument("--repeats", type=int, default=1, help="Unused legacy option retained for CLI compatibility.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--gnn-epochs", type=int, default=120)
     parser.add_argument("--gnn-hidden-dim", type=int, default=96)
@@ -245,11 +244,7 @@ def run_benchmark(
     labels = labels.reset_index(drop=True)
     model_list = models or DEFAULT_MODELS
 
-    splitter = RepeatedStratifiedKFold(
-        n_splits=folds,
-        n_repeats=repeats,
-        random_state=seed,
-    )
+    splits = build_time_aware_folds(prepared, labels, folds=folds)
 
     fold_rows: list[dict[str, object]] = []
     plot_payloads = {
@@ -257,12 +252,14 @@ def run_benchmark(
         for model_name in model_list
     }
 
-    for fold_index, (train_idx, test_idx) in enumerate(splitter.split(features, labels), start=1):
-        x_train = features.iloc[train_idx]
-        x_test = features.iloc[test_idx]
-        y_train = labels.iloc[train_idx]
-        y_test = labels.iloc[test_idx]
-        fold_name = f"fold-{fold_index}"
+    for fold_index, split in enumerate(splits, start=1):
+        train_idx = split.train_indices
+        test_idx = split.test_indices
+        x_train = features.loc[train_idx]
+        x_test = features.loc[test_idx]
+        y_train = labels.loc[train_idx]
+        y_test = labels.loc[test_idx]
+        fold_name = f"time-fold-{fold_index}"
 
         for model_name in model_list:
             if model_name in {"gnn", "gnn_graphsage", "gnn_gat"}:
@@ -310,6 +307,9 @@ def run_benchmark(
                     "fp": result.get("fp"),
                     "fn": result.get("fn"),
                     "tp": result.get("tp"),
+                    "train_step_max": split.metadata.get("train_step_max"),
+                    "test_step_min": split.metadata.get("test_step_min"),
+                    "test_step_max": split.metadata.get("test_step_max"),
                 }
             )
 
@@ -360,8 +360,9 @@ def run_benchmark(
     config = {
         "dataset": str(dataset_path),
         "models": model_list,
-        "folds": folds,
+        "folds": len(splits),
         "repeats": repeats,
+        "evaluation_strategy": "time_aware_forward_folds",
         "seed": seed,
         "gnn_epochs": gnn_epochs,
         "gnn_hidden_dim": gnn_hidden_dim,

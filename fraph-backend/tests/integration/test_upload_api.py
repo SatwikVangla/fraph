@@ -3,7 +3,7 @@ import socket
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import urlopen
@@ -37,7 +37,7 @@ def _seed_dataset(test_app: FastAPI) -> DatasetRecord:
             sender_column='nameOrig',
             receiver_column='nameDest',
             label_column='isFraud',
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
         )
         session.add(record)
         session.commit()

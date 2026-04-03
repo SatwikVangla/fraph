@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.services.fraud_detection import run_fraud_detection
@@ -24,7 +24,7 @@ def read_preparation_status(dataset_path: str | Path) -> dict[str, object]:
             "job_id": None,
             "progress": 0,
             "message": "No preparation job has been started.",
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
     try:
         return json.loads(status_path.read_text())
@@ -34,7 +34,7 @@ def read_preparation_status(dataset_path: str | Path) -> dict[str, object]:
             "job_id": None,
             "progress": 100,
             "message": "Preparation status file could not be read.",
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
 
 
@@ -53,7 +53,7 @@ def write_preparation_status(
         "progress": progress,
         "message": message,
         "artifact_ready": artifact_ready,
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     build_preparation_status_path(dataset_path).write_text(json.dumps(payload, indent=2))
 

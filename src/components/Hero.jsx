@@ -1,6 +1,9 @@
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ParticleBackground from "./ParticleBackground";
+
+const HomeTitleScene = lazy(() => import("./HomeTitleScene"));
 
 const platformStats = [
   { value: "8.4M", label: "transactions profiled" },
@@ -38,8 +41,24 @@ const controlPanels = [
   { name: "Compare", detail: "Measure GNN gains over simpler non-graph baselines." },
 ];
 
+function SceneFallback() {
+  return (
+    <div className="hero-scene-fallback" aria-hidden="true">
+      <div className="hero-scene-fallback-grid" />
+      <div className="hero-scene-fallback-glow" />
+      <div className="hero-scene-fallback-title">FRAPH</div>
+    </div>
+  );
+}
+
 export default function Hero() {
   const navigate = useNavigate();
+  const [showScene, setShowScene] = useState(false);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setShowScene(true), 120);
+    return () => window.clearTimeout(handle);
+  }, []);
 
   return (
     <main className="homepage-shell">
@@ -115,15 +134,18 @@ export default function Hero() {
           <div className="hero-stage">
             <div className="hero-stage-shell">
               <div className="hero-stage-screen">
-                <div className="radar-orbit orbit-one" />
-                <div className="radar-orbit orbit-two" />
-                <div className="radar-core" />
-                <div className="signal-column signal-column-left" />
-                <div className="signal-column signal-column-right" />
+                {showScene ? (
+                  <Suspense fallback={<SceneFallback />}>
+                    <HomeTitleScene />
+                  </Suspense>
+                ) : (
+                  <SceneFallback />
+                )}
+                <div className="hero-stage-vignette" />
 
                 <div className="stage-panel stage-panel-top">
-                  <span>Live network map</span>
-                  <span>Threat channel armed</span>
+                  <span>Graph forge sequence</span>
+                  <span>FRAPH title assembled from network flow</span>
                 </div>
 
                 <div className="stage-panel stage-panel-right">
