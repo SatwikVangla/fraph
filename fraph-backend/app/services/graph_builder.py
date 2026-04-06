@@ -4,6 +4,65 @@ import pandas as pd
 from app.services.preprocessing import preprocess_dataset, recommended_max_rows
 
 
+def _rank_focus_transactions(
+    dataframe: pd.DataFrame,
+    *,
+    limit: int,
+    suspicious_transaction_ids: list[str] | None,
+) -> pd.DataFrame:
+    focus_ids = {str(transaction_id) for transaction_id in (suspicious_transaction_ids or [])}
+
+    working = dataframe.copy()
+    working["focus_boost"] = working["transaction_id"].isin(focus_ids).astype(int)
+    account_activity = pd.concat(
+        [
+            working[["sender", "amount"]].rename(columns={"sender": "account"}),
+            working[["receiver", "amount"]].rename(columns={"receiver": "account"}),
+        ],
+        ignore_index=True,
+    )
+    account_stats = (
+        account_activity.groupby("account", sort=False)["amount"]
+        .agg(total_amount="sum", activity_count="size")
+        .reset_index()
+    )
+    account_stats = account_stats.sort_values(
+        ["activity_count", "total_amount"],
+        ascending=False,
+    )
+    focus_account_ids = set(account_stats.head(max(limit, 4))["account"].astype(str))
+
+    if focus_ids:
+        focus_rows = working[working["transaction_id"].isin(focus_ids)].copy()
+        focus_account_ids.update(focus_rows["sender"].astype(str))
+        focus_account_ids.update(focus_rows["receiver"].astype(str))
+
+    working["touches_focus_account"] = (
+        working["sender"].isin(focus_account_ids) | working["receiver"].isin(focus_account_ids)
+    ).astype(int)
+    sender_rank = (
+        working.groupby("sender", sort=False)["amount"].rank(method="first", ascending=False) <= 2
+    ).astype(int)
+    receiver_rank = (
+        working.groupby("receiver", sort=False)["amount"].rank(method="first", ascending=False) <= 2
+    ).astype(int)
+    working["local_prominence"] = sender_rank | receiver_rank
+
+    working = working.sort_values(
+        [
+            "focus_boost",
+            "touches_focus_account",
+            "label",
+            "local_prominence",
+            "amount",
+        ],
+        ascending=[False, False, False, False, False],
+    )
+
+    focus_count = max(limit * 2, 12)
+    return working.head(focus_count).copy()
+
+
 def build_graph_from_prepared(
     dataframe: pd.DataFrame,
     limit: int = 10,
@@ -65,20 +124,19 @@ def build_graph_from_prepared(
     density = nx.density(account_graph) if account_graph.number_of_nodes() > 1 else 0.0
     components = nx.number_connected_components(account_graph) if account_graph.number_of_nodes() else 0
 
-    focus_ids = set(suspicious_transaction_ids or [])
-    if not focus_ids:
-        focus_frame = dataframe.sort_values("amount", ascending=False).head(limit)
-    else:
-        focus_frame = dataframe[dataframe["transaction_id"].isin(focus_ids)].copy()
-        if len(focus_frame) < limit:
-            remainder = dataframe[~dataframe["transaction_id"].isin(focus_ids)].sort_values(
-                "amount",
-                ascending=False,
-            )
-            focus_frame = pd.concat(
-                [focus_frame, remainder.head(max(limit - len(focus_frame), 0))],
-                ignore_index=True,
-            )
+    focus_frame = _rank_focus_transactions(
+        dataframe,
+        limit=limit,
+        suspicious_transaction_ids=suspicious_transaction_ids,
+    )
+    selected_accounts = set(focus_frame["sender"].astype(str)).union(
+        set(focus_frame["receiver"].astype(str))
+    )
+
+    account_edge_frame = grouped_edges[
+        grouped_edges["sender"].astype(str).isin(selected_accounts)
+        & grouped_edges["receiver"].astype(str).isin(selected_accounts)
+    ].copy()
 
     focus_graph = nx.DiGraph()
     for row in focus_frame.itertuples(index=False):
@@ -136,6 +194,30 @@ def build_graph_from_prepared(
             risk_score=risk_score,
         )
 
+    suspicious_pairs = (
+        focus_frame.groupby(["sender", "receiver"], sort=False)["label"].max().to_dict()
+        if "label" in focus_frame.columns
+        else {}
+    )
+    for row in account_edge_frame.itertuples(index=False):
+        sender_id = f"account:{row.sender}"
+        receiver_id = f"account:{row.receiver}"
+        if not focus_graph.has_node(sender_id) or not focus_graph.has_node(receiver_id):
+            continue
+        pair_is_risky = bool(suspicious_pairs.get((row.sender, row.receiver), False))
+        existing = focus_graph.get_edge_data(sender_id, receiver_id)
+        aggregate_payload = {
+            "count": int(row.count),
+            "total_amount": float(row.total_amount),
+            "edge_type": "transfers_to",
+            "risk_score": 1.0 if pair_is_risky else None,
+        }
+        if existing and existing.get("edge_type") == "transfers_to":
+            aggregate_payload["count"] += int(existing.get("count", 0))
+            aggregate_payload["total_amount"] += float(existing.get("total_amount", 0.0))
+            aggregate_payload["risk_score"] = existing.get("risk_score") or aggregate_payload["risk_score"]
+        focus_graph.add_edge(sender_id, receiver_id, **aggregate_payload)
+
     top_nodes = []
     for node_id, data in focus_graph.nodes(data=True):
         top_nodes.append(
@@ -152,6 +234,7 @@ def build_graph_from_prepared(
         )
     top_nodes.sort(
         key=lambda node: (
+            1 if node["suspicious"] else 0,
             1 if node["node_type"] == "transaction" else 0,
             node["total_amount"],
             node["degree"],
@@ -176,8 +259,8 @@ def build_graph_from_prepared(
         "edge_count": edge_count,
         "connected_components": components,
         "density": round(float(density), 4),
-        "top_nodes": top_nodes[: max(limit * 2, 1)],
-        "top_edges": top_edges[: max(limit * 4, 1)],
+        "top_nodes": top_nodes[: max(limit * 3, 1)],
+        "top_edges": top_edges[: max(limit * 6, 1)],
     }
 
 

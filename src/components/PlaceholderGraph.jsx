@@ -1,9 +1,137 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 const SVG_WIDTH = 980;
 const SVG_HEIGHT = 560;
+const GRAPH_THEMES = [
+  {
+    name: "Amber Risk",
+    panelGlow: "rgba(245, 158, 11, 0.24)",
+    secondaryGlow: "rgba(190, 24, 93, 0.18)",
+    transactionFill: "#f97316",
+    accountFill: "#fde68a",
+    suspiciousFill: "#facc15",
+    riskyEdge: "rgba(251, 191, 36, 0.95)",
+    neutralEdge: "rgba(255, 251, 235, 0.2)",
+    activeEdge: "rgba(249, 115, 22, 0.95)",
+    halo: "rgba(251, 191, 36, 0.14)",
+  },
+  {
+    name: "Crimson Mesh",
+    panelGlow: "rgba(220, 38, 38, 0.24)",
+    secondaryGlow: "rgba(239, 68, 68, 0.14)",
+    transactionFill: "#dc2626",
+    accountFill: "#fecaca",
+    suspiciousFill: "#fb7185",
+    riskyEdge: "rgba(251, 113, 133, 0.92)",
+    neutralEdge: "rgba(255, 228, 230, 0.2)",
+    activeEdge: "rgba(248, 113, 113, 0.98)",
+    halo: "rgba(248, 113, 113, 0.14)",
+  },
+  {
+    name: "Copper Flow",
+    panelGlow: "rgba(249, 115, 22, 0.22)",
+    secondaryGlow: "rgba(251, 191, 36, 0.14)",
+    transactionFill: "#ea580c",
+    accountFill: "#fed7aa",
+    suspiciousFill: "#fbbf24",
+    riskyEdge: "rgba(251, 191, 36, 0.9)",
+    neutralEdge: "rgba(255, 237, 213, 0.18)",
+    activeEdge: "rgba(249, 115, 22, 0.95)",
+    halo: "rgba(251, 146, 60, 0.13)",
+  },
+  {
+    name: "Rose Cluster",
+    panelGlow: "rgba(225, 29, 72, 0.22)",
+    secondaryGlow: "rgba(244, 63, 94, 0.14)",
+    transactionFill: "#e11d48",
+    accountFill: "#fbcfe8",
+    suspiciousFill: "#fb7185",
+    riskyEdge: "rgba(253, 164, 175, 0.92)",
+    neutralEdge: "rgba(255, 241, 242, 0.18)",
+    activeEdge: "rgba(244, 63, 94, 0.96)",
+    halo: "rgba(244, 114, 182, 0.14)",
+  },
+];
 
-function buildNodePositions(nodes, edges) {
+function hashValue(input) {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function formatCompact(value) {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+  return `${Math.round(value)}`;
+}
+
+function buildGraphProfile(nodes, edges) {
+  const suspiciousCount = nodes.filter((node) => node.suspicious).length;
+  const transactionCount = nodes.filter((node) => node.node_type === "transaction").length;
+  const riskyEdgeCount = edges.filter((edge) => edge.risk_score).length;
+  const totalAmount = edges.reduce((sum, edge) => sum + (edge.total_amount ?? 0), 0);
+  const edgeTypeCounts = new Map();
+  edges.forEach((edge) => {
+    edgeTypeCounts.set(edge.edge_type, (edgeTypeCounts.get(edge.edge_type) ?? 0) + 1);
+  });
+  const dominantEdgeType =
+    [...edgeTypeCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "mixed";
+  const density =
+    nodes.length > 1 ? edges.length / Math.max(nodes.length * (nodes.length - 1), 1) : 0;
+  const signature = [
+    nodes.length,
+    edges.length,
+    suspiciousCount,
+    riskyEdgeCount,
+    dominantEdgeType,
+    nodes.slice(0, 6).map((node) => node.id).join("|"),
+  ].join(":");
+
+  return {
+    suspiciousCount,
+    transactionCount,
+    riskyEdgeCount,
+    totalAmount,
+    dominantEdgeType,
+    density,
+    signature,
+  };
+}
+
+function pickGraphTheme(profile) {
+  const themeIndex = hashValue(profile.signature) % GRAPH_THEMES.length;
+  return GRAPH_THEMES[themeIndex];
+}
+
+function buildBackdropBlobs(nodes) {
+  return nodes
+    .filter((node) => node.node_type === "transaction")
+    .slice(0, 6)
+    .map((node, index) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      rx: 54 + Math.min(node.degree, 8) * 8 + index * 3,
+      ry: 36 + Math.min(node.degree, 6) * 7,
+      rotation: ((hashValue(node.id) % 90) - 45),
+      opacity: node.suspicious ? 0.95 : 0.55,
+    }));
+}
+
+function buildFlowPositions(nodes, edges) {
   const transactionNodes = nodes.filter((node) => node.node_type === "transaction");
   const accountNodes = nodes.filter((node) => node.node_type !== "transaction");
 
@@ -66,6 +194,134 @@ function buildNodePositions(nodes, edges) {
   ];
 }
 
+function buildNetworkPositions(nodes, edges) {
+  const centerX = SVG_WIDTH * 0.52;
+  const centerY = SVG_HEIGHT * 0.5;
+  const nodeIndex = new Map(nodes.map((node, index) => [node.id, index]));
+  const directionalBalance = new Map();
+  const neighborsById = new Map(nodes.map((node) => [node.id, new Set()]));
+
+  edges.forEach((edge) => {
+    neighborsById.get(edge.source)?.add(edge.target);
+    neighborsById.get(edge.target)?.add(edge.source);
+    directionalBalance.set(
+      edge.source,
+      (directionalBalance.get(edge.source) ?? 0) + 1,
+    );
+    directionalBalance.set(
+      edge.target,
+      (directionalBalance.get(edge.target) ?? 0) - 1,
+    );
+  });
+
+  const positions = nodes.map((node) => {
+    const seed = hashValue(node.id);
+    const angle = ((seed % 360) * Math.PI) / 180;
+    const radialBand =
+      node.node_type === "transaction"
+        ? 90 + (seed % 70)
+        : 180 + (seed % 110);
+    const directionalOffset = directionalBalance.get(node.id) ?? 0;
+
+    return {
+      ...node,
+      x: clamp(
+        centerX +
+          Math.cos(angle) * radialBand +
+          (directionalOffset > 0 ? -50 : directionalOffset < 0 ? 50 : 0),
+        90,
+        SVG_WIDTH - 90,
+      ),
+      y: clamp(
+        centerY +
+          Math.sin(angle) * (radialBand * 0.72) +
+          (node.suspicious ? -18 : 0),
+        80,
+        SVG_HEIGHT - 80,
+      ),
+      vx: 0,
+      vy: 0,
+    };
+  });
+
+  const kRepel = 19000;
+  const kLink = 0.011;
+  const gravity = 0.02;
+  const damping = 0.84;
+  const idealLengthBase = 84;
+  const iterations = Math.min(140, 70 + nodes.length * 2);
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    for (let index = 0; index < positions.length; index += 1) {
+      const node = positions[index];
+      let fx = (centerX - node.x) * gravity;
+      let fy = (centerY - node.y) * gravity;
+
+      for (let otherIndex = 0; otherIndex < positions.length; otherIndex += 1) {
+        if (otherIndex === index) {
+          continue;
+        }
+        const other = positions[otherIndex];
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const distanceSq = Math.max(dx * dx + dy * dy, 28);
+        const distance = Math.sqrt(distanceSq);
+        const repel = kRepel / distanceSq;
+        fx += (dx / distance) * repel;
+        fy += (dy / distance) * repel;
+      }
+
+      const neighborIds = neighborsById.get(node.id) ?? new Set();
+      neighborIds.forEach((neighborId) => {
+        const neighbor = positions[nodeIndex.get(neighborId)];
+        if (!neighbor) {
+          return;
+        }
+        const dx = neighbor.x - node.x;
+        const dy = neighbor.y - node.y;
+        const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const idealLength =
+          idealLengthBase +
+          (node.node_type === "transaction" || neighbor.node_type === "transaction" ? 14 : 32) +
+          Math.min((node.degree + neighbor.degree) * 2, 34);
+        const pull = (distance - idealLength) * kLink;
+        fx += (dx / distance) * pull;
+        fy += (dy / distance) * pull;
+      });
+
+      if (node.node_type === "transaction") {
+        fx += (centerX - node.x) * 0.028;
+        fy += (centerY - node.y) * 0.028;
+      } else {
+        const balance = directionalBalance.get(node.id) ?? 0;
+        fx += balance > 0 ? -0.9 : balance < 0 ? 0.9 : 0;
+      }
+
+      node.vx = (node.vx + fx) * damping;
+      node.vy = (node.vy + fy) * damping;
+    }
+
+    positions.forEach((node) => {
+      node.x = clamp(node.x + node.vx, 70, SVG_WIDTH - 70);
+      node.y = clamp(node.y + node.vy, 70, SVG_HEIGHT - 70);
+    });
+  }
+
+  return positions.map((node) => {
+    const cleanedNode = { ...node };
+    delete cleanedNode.vx;
+    delete cleanedNode.vy;
+    return cleanedNode;
+  });
+}
+
+function buildNodePositions(nodes, edges, layoutMode) {
+  if (layoutMode === "network") {
+    return buildNetworkPositions(nodes, edges);
+  }
+  return buildFlowPositions(nodes, edges);
+}
+
 function getConnectedItems(edges, selectedNodeId) {
   if (!selectedNodeId) {
     return { neighborIds: new Set(), selectedEdgeKeys: new Set() };
@@ -89,9 +345,10 @@ export default function PlaceholderGraph({
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [viewMode, setViewMode] = useState("all");
+  const [layoutMode, setLayoutMode] = useState("network");
 
-  const nodes = graph?.top_nodes ?? [];
-  const edges = graph?.top_edges ?? [];
+  const nodes = useMemo(() => graph?.top_nodes ?? [], [graph]);
+  const edges = useMemo(() => graph?.top_edges ?? [], [graph]);
   const focusNodeId = focusTransactionId ? `transaction:${focusTransactionId}` : null;
 
   const baseGraph = useMemo(() => {
@@ -145,12 +402,11 @@ export default function PlaceholderGraph({
     };
   }, [baseGraph, focusNodeId]);
 
-  useEffect(() => {
-    if (!focusNodeId) {
-      return;
-    }
-    setSelectedNodeId(focusNodeId);
-  }, [focusNodeId]);
+  const graphProfile = useMemo(
+    () => buildGraphProfile(visibleGraph.nodes, visibleGraph.edges),
+    [visibleGraph.edges, visibleGraph.nodes],
+  );
+  const graphTheme = useMemo(() => pickGraphTheme(graphProfile), [graphProfile]);
 
   if (!visibleGraph.nodes.length) {
     return (
@@ -160,10 +416,12 @@ export default function PlaceholderGraph({
     );
   }
 
-  const positionedNodes = buildNodePositions(visibleGraph.nodes, visibleGraph.edges);
+  const positionedNodes = buildNodePositions(visibleGraph.nodes, visibleGraph.edges, layoutMode);
+  const backdropBlobs = buildBackdropBlobs(positionedNodes);
   const nodeMap = new Map(positionedNodes.map((node) => [node.id, node]));
-  const selectedNode = selectedNodeId
-    ? nodeMap.get(selectedNodeId) ?? positionedNodes[0]
+  const effectiveSelectedNodeId = focusNodeId ?? selectedNodeId;
+  const selectedNode = effectiveSelectedNodeId
+    ? nodeMap.get(effectiveSelectedNodeId) ?? positionedNodes[0]
     : positionedNodes[0];
   const { neighborIds, selectedEdgeKeys } = getConnectedItems(
     visibleGraph.edges,
@@ -184,7 +442,7 @@ export default function PlaceholderGraph({
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 p-4">
-      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto_auto]">
         <GraphStat label="Accounts" value={accountCount} tone="neutral" />
         <GraphStat
           label="Transactions"
@@ -208,6 +466,18 @@ export default function PlaceholderGraph({
             onClick={() => setViewMode("suspicious")}
           />
         </div>
+        <div className="flex items-center justify-end gap-2 rounded-xl border border-neutral-900 bg-neutral-950/90 px-3 py-2">
+          <ViewButton
+            active={layoutMode === "network"}
+            label="Network"
+            onClick={() => setLayoutMode("network")}
+          />
+          <ViewButton
+            active={layoutMode === "flow"}
+            label="Flow"
+            onClick={() => setLayoutMode("flow")}
+          />
+        </div>
       </div>
 
       {focusTransactionId ? (
@@ -218,14 +488,35 @@ export default function PlaceholderGraph({
 
       <div className="grid items-start gap-4 xl:grid-cols-[1.65fr_0.85fr]">
         <div className="overflow-hidden rounded-2xl border border-neutral-900 bg-[radial-gradient(circle_at_50%_50%,rgba(185,28,28,0.28),transparent_32%),linear-gradient(180deg,rgba(18,18,18,0.96),rgba(6,6,6,0.98))]">
+          <div
+            className="overflow-hidden rounded-2xl border border-neutral-900"
+            style={{
+              backgroundImage: `radial-gradient(circle at 20% 18%, ${graphTheme.panelGlow}, transparent 28%), radial-gradient(circle at 78% 24%, ${graphTheme.secondaryGlow}, transparent 24%), linear-gradient(180deg, rgba(18,18,18,0.96), rgba(6,6,6,0.98))`,
+            }}
+          >
           <div className="border-b border-neutral-900 px-5 py-4">
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-red-400">
               Relationship Map
             </p>
             <p className="mt-2 text-sm text-neutral-500">
-              Sender accounts initiate transactions in the center, which then settle
-              into receiver accounts on the right.
+              {layoutMode === "network"
+                ? "Nodes are arranged from their actual transaction links so each dataset forms its own shape."
+                : "Sender accounts initiate transactions in the center, which then settle into receiver accounts on the right."}
             </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em] text-neutral-300">
+              <span className="rounded-full border border-neutral-800 bg-black/35 px-3 py-1.5">
+                Theme {graphTheme.name}
+              </span>
+              <span className="rounded-full border border-neutral-800 bg-black/35 px-3 py-1.5">
+                Dominant {graphProfile.dominantEdgeType}
+              </span>
+              <span className="rounded-full border border-neutral-800 bg-black/35 px-3 py-1.5">
+                Density {(graphProfile.density * 100).toFixed(1)}%
+              </span>
+              <span className="rounded-full border border-neutral-800 bg-black/35 px-3 py-1.5">
+                Amount {formatCompact(graphProfile.totalAmount)}
+              </span>
+            </div>
           </div>
           <svg
             viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
@@ -241,19 +532,36 @@ export default function PlaceholderGraph({
                 markerHeight="6"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,113,113,0.88)" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill={graphTheme.activeEdge} />
               </marker>
             </defs>
 
-            <text x="115" y="44" className="fill-neutral-500 text-[12px] uppercase tracking-[0.28em]">
-              Senders
-            </text>
-            <text x={SVG_WIDTH * 0.5 - 34} y="44" className="fill-neutral-500 text-[12px] uppercase tracking-[0.28em]">
-              Transactions
-            </text>
-            <text x="794" y="44" className="fill-neutral-500 text-[12px] uppercase tracking-[0.28em]">
-              Receivers
-            </text>
+            {backdropBlobs.map((blob) => (
+              <ellipse
+                key={blob.id}
+                cx={blob.x}
+                cy={blob.y}
+                rx={blob.rx}
+                ry={blob.ry}
+                transform={`rotate(${blob.rotation} ${blob.x} ${blob.y})`}
+                fill={graphTheme.halo}
+                opacity={blob.opacity}
+              />
+            ))}
+
+            {layoutMode === "flow" ? (
+              <>
+                <text x="115" y="44" className="fill-neutral-500 text-[12px] uppercase tracking-[0.28em]">
+                  Senders
+                </text>
+                <text x={SVG_WIDTH * 0.5 - 34} y="44" className="fill-neutral-500 text-[12px] uppercase tracking-[0.28em]">
+                  Transactions
+                </text>
+                <text x="794" y="44" className="fill-neutral-500 text-[12px] uppercase tracking-[0.28em]">
+                  Receivers
+                </text>
+              </>
+            ) : null}
 
             {visibleGraph.edges.map((edge) => {
               const source = nodeMap.get(edge.source);
@@ -265,41 +573,48 @@ export default function PlaceholderGraph({
               const active = selectedEdgeKeys.has(`${edge.source}-${edge.target}`);
               const isRisky = Boolean(edge.risk_score);
               const stroke = isRisky
-                ? "rgba(251,191,36,0.92)"
+                ? graphTheme.riskyEdge
                 : active
-                  ? "rgba(248,113,113,0.95)"
-                  : "rgba(255,255,255,0.18)";
+                  ? graphTheme.activeEdge
+                  : graphTheme.neutralEdge;
               const midX = (source.x + target.x) / 2;
               const midY = (source.y + target.y) / 2;
+              const curvature = ((hashValue(`${edge.source}:${edge.target}`) % 36) - 18) * 1.8;
+              const controlX = midX + (source.y - target.y) * 0.08;
+              const controlY = midY + (target.x - source.x) * 0.08 + curvature;
+              const path = `M ${source.x} ${source.y} Q ${controlX} ${controlY} ${target.x} ${target.y}`;
 
               return (
                 <g key={`${edge.source}-${edge.target}`}>
-                  <line
-                    x1={source.x}
-                    y1={source.y}
-                    x2={target.x}
-                    y2={target.y}
+                  <path
+                    d={path}
                     stroke={stroke}
-                    strokeWidth={active || isRisky ? 3 : 1.8}
+                    fill="none"
+                    strokeWidth={active || isRisky ? 3 : 1.8 + Math.min(edge.count ?? 1, 4) * 0.2}
+                    strokeOpacity={layoutMode === "network" ? 0.96 : 0.88}
                     markerEnd={active || isRisky ? "url(#arrowHead)" : undefined}
                   />
-                  <rect
-                    x={midX - 28}
-                    y={midY - 15}
-                    width="56"
-                    height="18"
-                    rx="9"
-                    fill="rgba(10,10,10,0.88)"
-                    stroke="rgba(255,255,255,0.08)"
-                  />
-                  <text
-                    x={midX}
-                    y={midY - 3}
-                    textAnchor="middle"
-                    className="fill-neutral-400 text-[10px] uppercase tracking-[0.18em]"
-                  >
-                    {edge.edge_type}
-                  </text>
+                  {layoutMode === "flow" ? (
+                    <>
+                      <rect
+                        x={midX - 28}
+                        y={midY - 15}
+                        width="56"
+                        height="18"
+                        rx="9"
+                        fill="rgba(10,10,10,0.88)"
+                        stroke="rgba(255,255,255,0.08)"
+                      />
+                      <text
+                        x={midX}
+                        y={midY - 3}
+                        textAnchor="middle"
+                        className="fill-neutral-400 text-[10px] uppercase tracking-[0.18em]"
+                      >
+                        {edge.edge_type}
+                      </text>
+                    </>
+                  ) : null}
                 </g>
               );
             })}
@@ -310,10 +625,10 @@ export default function PlaceholderGraph({
               const isTransaction = node.node_type === "transaction";
               const radius = isTransaction ? 20 : 11 + Math.min(node.degree, 7);
               const fill = node.suspicious
-                ? "#fbbf24"
+                ? graphTheme.suspiciousFill
                 : isTransaction
-                  ? "#dc2626"
-                  : "#fafafa";
+                  ? graphTheme.transactionFill
+                  : graphTheme.accountFill;
               const stroke = isSelected
                 ? "#ffffff"
                 : isNeighbor
@@ -377,6 +692,7 @@ export default function PlaceholderGraph({
               );
             })}
           </svg>
+        </div>
         </div>
 
         <div className="rounded-2xl border border-neutral-900 bg-neutral-950/90 p-5">
