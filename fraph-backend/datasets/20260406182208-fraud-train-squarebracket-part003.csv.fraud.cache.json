@@ -1,0 +1,406 @@
+{
+  "dataset_mtime_ns": 1775499728286944720,
+  "dataset_size": 27081926,
+  "entries": {
+    "threshold=0.6500|limit=8": {
+      "status": "completed",
+      "dataset": {
+        "id": 22,
+        "name": "fraud-train-squarebracket-part003",
+        "original_filename": "fraud_train_squarebracket.part003.csv",
+        "stored_path": "/home/satwik/fraph/fraph-backend/datasets/20260406182208-fraud-train-squarebracket-part003.csv",
+        "row_count": 100000,
+        "file_size_bytes": 27081926,
+        "large_dataset": false,
+        "preprocessing_status": "missing",
+        "preprocessing_job_id": null,
+        "amount_column": "amt",
+        "sender_column": "trans_num",
+        "receiver_column": "merchant",
+        "label_column": "is_fraud",
+        "created_at": "2026-04-06T18:22:09.622033"
+      },
+      "summary": {
+        "transactions_analyzed": 100000,
+        "suspicious_transactions": 0,
+        "fraud_rate": 0.0,
+        "average_risk_score": 0.1409,
+        "total_amount": 7023706.37
+      },
+      "graph": {
+        "node_count": 100693,
+        "edge_count": 100000,
+        "connected_components": 693,
+        "density": 0.0,
+        "top_nodes": [
+          {
+            "id": "transaction:txn-32175",
+            "label": "txn-32175",
+            "degree": 2,
+            "total_amount": 10525.07,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-12956",
+            "label": "txn-12956",
+            "degree": 2,
+            "total_amount": 8266.86,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-12630",
+            "label": "txn-12630",
+            "degree": 2,
+            "total_amount": 4551.94,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-23088",
+            "label": "txn-23088",
+            "degree": 2,
+            "total_amount": 4343.37,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-1761",
+            "label": "txn-1761",
+            "degree": 2,
+            "total_amount": 3633.17,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-69445",
+            "label": "txn-69445",
+            "degree": 2,
+            "total_amount": 1511.33,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-87103",
+            "label": "txn-87103",
+            "degree": 2,
+            "total_amount": 1145.9,
+            "node_type": "transaction",
+            "risk_score": 1.0,
+            "suspicious": true,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-94359",
+            "label": "txn-94359",
+            "degree": 2,
+            "total_amount": 957.51,
+            "node_type": "transaction",
+            "risk_score": 1.0,
+            "suspicious": true,
+            "activity_count": 1
+          },
+          {
+            "id": "account:e4aa11789bc7a79d59121bd4dbe1e585",
+            "label": "e4aa11789bc7a79d59121bd4dbe1e585",
+            "degree": 1,
+            "total_amount": 10525.07,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:fraud_Reichel, Bradtke and Blanda",
+            "label": "fraud_Reichel, Bradtke and Blanda",
+            "degree": 1,
+            "total_amount": 10525.07,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:14a9176ba3d527dd5ad0292538774eb3",
+            "label": "14a9176ba3d527dd5ad0292538774eb3",
+            "degree": 1,
+            "total_amount": 8266.86,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:fraud_Veum-Koelpin",
+            "label": "fraud_Veum-Koelpin",
+            "degree": 1,
+            "total_amount": 8266.86,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:10171baac6d3982e6b6f5a5ea9939f59",
+            "label": "10171baac6d3982e6b6f5a5ea9939f59",
+            "degree": 1,
+            "total_amount": 4551.94,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:fraud_Ebert-Daugherty",
+            "label": "fraud_Ebert-Daugherty",
+            "degree": 1,
+            "total_amount": 4551.94,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:9328e6d8562c5aa6c56e5c514327a8b0",
+            "label": "9328e6d8562c5aa6c56e5c514327a8b0",
+            "degree": 1,
+            "total_amount": 4343.37,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:fraud_Leannon-Nikolaus",
+            "label": "fraud_Leannon-Nikolaus",
+            "degree": 1,
+            "total_amount": 4343.37,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          }
+        ],
+        "top_edges": [
+          {
+            "source": "account:e8be7aa98abe1e34ec8885f42c0334ef",
+            "target": "transaction:txn-1761",
+            "count": 1,
+            "total_amount": 3633.17,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-1761",
+            "target": "account:fraud_Block-Hauck",
+            "count": 1,
+            "total_amount": 3633.17,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:10171baac6d3982e6b6f5a5ea9939f59",
+            "target": "transaction:txn-12630",
+            "count": 1,
+            "total_amount": 4551.94,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-12630",
+            "target": "account:fraud_Ebert-Daugherty",
+            "count": 1,
+            "total_amount": 4551.94,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:14a9176ba3d527dd5ad0292538774eb3",
+            "target": "transaction:txn-12956",
+            "count": 1,
+            "total_amount": 8266.86,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-12956",
+            "target": "account:fraud_Veum-Koelpin",
+            "count": 1,
+            "total_amount": 8266.86,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:9328e6d8562c5aa6c56e5c514327a8b0",
+            "target": "transaction:txn-23088",
+            "count": 1,
+            "total_amount": 4343.37,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-23088",
+            "target": "account:fraud_Leannon-Nikolaus",
+            "count": 1,
+            "total_amount": 4343.37,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:e4aa11789bc7a79d59121bd4dbe1e585",
+            "target": "transaction:txn-32175",
+            "count": 1,
+            "total_amount": 10525.07,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-32175",
+            "target": "account:fraud_Reichel, Bradtke and Blanda",
+            "count": 1,
+            "total_amount": 10525.07,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:33917ba0ac459128e4f56f9cf7c57cdc",
+            "target": "transaction:txn-69445",
+            "count": 1,
+            "total_amount": 1511.33,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-69445",
+            "target": "account:fraud_Kuhn LLC",
+            "count": 1,
+            "total_amount": 1511.33,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:24c24d9c46966756a29252e365d9177e",
+            "target": "transaction:txn-87103",
+            "count": 1,
+            "total_amount": 1145.9,
+            "edge_type": "initiates",
+            "risk_score": 1.0
+          },
+          {
+            "source": "transaction:txn-87103",
+            "target": "account:fraud_Kuhn LLC",
+            "count": 1,
+            "total_amount": 1145.9,
+            "edge_type": "settles_to",
+            "risk_score": 1.0
+          },
+          {
+            "source": "account:dd1edb39b54937cc6360696f1fe9775d",
+            "target": "transaction:txn-94359",
+            "count": 1,
+            "total_amount": 957.51,
+            "edge_type": "initiates",
+            "risk_score": 1.0
+          },
+          {
+            "source": "transaction:txn-94359",
+            "target": "account:fraud_Cormier LLC",
+            "count": 1,
+            "total_amount": 957.51,
+            "edge_type": "settles_to",
+            "risk_score": 1.0
+          }
+        ]
+      },
+      "suspicious_transactions": [
+        {
+          "transaction_id": "txn-12956",
+          "sender": "14a9176ba3d527dd5ad0292538774eb3",
+          "receiver": "fraud_Veum-Koelpin",
+          "amount": 8266.86,
+          "risk_score": 0.5778,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-12630",
+          "sender": "10171baac6d3982e6b6f5a5ea9939f59",
+          "receiver": "fraud_Ebert-Daugherty",
+          "amount": 4551.94,
+          "risk_score": 0.5759,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-32175",
+          "sender": "e4aa11789bc7a79d59121bd4dbe1e585",
+          "receiver": "fraud_Reichel, Bradtke and Blanda",
+          "amount": 10525.07,
+          "risk_score": 0.5731,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-94359",
+          "sender": "dd1edb39b54937cc6360696f1fe9775d",
+          "receiver": "fraud_Cormier LLC",
+          "amount": 957.51,
+          "risk_score": 0.5725,
+          "predicted_fraud": false,
+          "actual_label": true
+        },
+        {
+          "transaction_id": "txn-87103",
+          "sender": "24c24d9c46966756a29252e365d9177e",
+          "receiver": "fraud_Kuhn LLC",
+          "amount": 1145.9,
+          "risk_score": 0.5707,
+          "predicted_fraud": false,
+          "actual_label": true
+        },
+        {
+          "transaction_id": "txn-69445",
+          "sender": "33917ba0ac459128e4f56f9cf7c57cdc",
+          "receiver": "fraud_Kuhn LLC",
+          "amount": 1511.33,
+          "risk_score": 0.5701,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-23088",
+          "sender": "9328e6d8562c5aa6c56e5c514327a8b0",
+          "receiver": "fraud_Leannon-Nikolaus",
+          "amount": 4343.37,
+          "risk_score": 0.5687,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-1761",
+          "sender": "e8be7aa98abe1e34ec8885f42c0334ef",
+          "receiver": "fraud_Block-Hauck",
+          "amount": 3633.17,
+          "risk_score": 0.5681,
+          "predicted_fraud": false,
+          "actual_label": false
+        }
+      ],
+      "analysis_generated_at": "2026-04-06T18:22:10.917292+00:00",
+      "served_from_cache": false
+    }
+  }
+}

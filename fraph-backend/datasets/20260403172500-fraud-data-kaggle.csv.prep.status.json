@@ -1,0 +1,8 @@
+{
+  "status": "completed",
+  "job_id": "13d43e71-f04c-4422-85c6-48e4e387d5f5",
+  "progress": 100,
+  "message": "Large dataset artifact is ready.",
+  "artifact_ready": true,
+  "updated_at": "2026-04-03T17:25:03.930196+00:00"
+}
