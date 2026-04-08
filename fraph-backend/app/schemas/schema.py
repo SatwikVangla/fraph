@@ -128,6 +128,8 @@ class FraudAnalysisResponse(BaseModel):
     summary: FraudSummary
     graph: GraphSummary
     suspicious_transactions: list[SuspiciousTransaction]
+    analysis_generated_at: str | None = None
+    served_from_cache: bool = False
 
 
 class ModelMetric(BaseModel):

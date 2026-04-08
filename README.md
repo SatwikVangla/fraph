@@ -2,7 +2,7 @@
 
 FRAPH is a fraud-analysis workspace with a React frontend and a FastAPI backend. It accepts transaction CSV files, builds graph summaries, runs fraud scoring, and compares simpler non-graph baselines against a relationship-aware GNN that models users, counterparties, and transactions as a connected system. It also includes async training jobs, experiment history, downloadable reports, diagnostics, and richer model evaluation.
 
-The repo is intended to run on both Linux and Windows. The application code avoids OS-specific paths, and the benchmark runner now uses the system temp directory instead of a Linux-only `/tmp` path.
+The repo is intended to run on both Linux and Windows. The application code avoids OS-specific paths, the benchmark runner uses the system temp directory instead of a Linux-only `/tmp` path, and the frontend can be pointed at the backend through `VITE_API_BASE_URL`.
 
 ## Current Capabilities
 
@@ -88,79 +88,130 @@ Use:
 
 - Node.js 20+
 - Python 3.11 or 3.12
+- Git for Windows if you want to clone instead of downloading a ZIP
 
-### Frontend
+## Download The Repository
 
-```bash
-npm install
+Option 1, clone with Git:
+
+```powershell
+git clone <repo-url>
+cd fraph
 ```
 
-Windows PowerShell is also fine here:
+Option 2, download a ZIP:
+
+1. Open the repository in GitHub.
+2. Select `Code`.
+3. Select `Download ZIP`.
+4. Extract the ZIP.
+5. Open the extracted `fraph` folder in PowerShell.
+
+## Windows Setup
+
+Open two PowerShell windows from the repository root.
+
+### 1. Frontend
+
+Install frontend dependencies:
 
 ```powershell
 npm install
 ```
 
-Create `.env` from `.env.example`:
+Create a root `.env` file:
 
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-### Backend
+Start the frontend:
 
-Linux:
-
-```bash
-cd fraph-backend
-python3 -m venv .venv
-source .venv/bin/activate
+```powershell
+npm run dev
 ```
 
-Windows PowerShell:
+### 2. Backend
+
+Move into the backend folder and create a virtual environment:
 
 ```powershell
 cd fraph-backend
 py -3 -m venv .venv
+```
+
+Activate it:
+
+```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-Install dependencies:
+If PowerShell blocks script execution, run this once in the same terminal and then activate again:
 
-```bash
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Install backend dependencies:
+
+```powershell
+python -m pip install --upgrade pip
 pip install -r requirements-base.txt
 pip install --index-url https://download.pytorch.org/whl/cpu -r requirements-cpu.txt
 ```
 
-Windows PowerShell uses the same commands after activating the virtual environment.
-
-Optional backend `.env`:
+Optional backend `.env` inside `fraph-backend`:
 
 ```env
 FRAPH_APP_NAME=Fraph Backend
 FRAPH_DATABASE_URL=sqlite:///./fraph.db
 ```
 
-## Run
+Start the backend:
+
+```powershell
+python run_backend.py
+```
+
+## Linux/macOS Setup
+
+Frontend:
+
+```bash
+npm install
+```
+
+Create a root `.env` file:
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
 
 Backend:
 
 ```bash
 cd fraph-backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-base.txt
+pip install --index-url https://download.pytorch.org/whl/cpu -r requirements-cpu.txt
 python run_backend.py
 ```
 
-Frontend:
+Frontend run command:
 
 ```bash
 npm run dev
 ```
 
-Windows PowerShell:
+## Run
 
-```powershell
-npm run dev
-```
+Once both servers are running:
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://127.0.0.1:8000`
+
+On Windows, keep the backend terminal inside `fraph-backend` and the frontend terminal at the repo root.
 
 ## API Surfaces
 
@@ -312,6 +363,55 @@ Best-fit CSV shape for FRAPH:
 - optional fraud label column
 
 If a CSV is purely generic tabular data with no entity relationship fields, FRAPH can still ingest it, but the graph and GNN become much less meaningful.
+
+## Local Datasets
+
+The repository now includes several local datasets under `fraph-backend/datasets`.
+
+### PaySim-style Kaggle dataset
+
+Full CSV files:
+
+- `fraph-backend/datasets/fraud_data_kaggle.csv`
+- `fraph-backend/datasets/20260330150703-fraud-data-kaggle.csv`
+- `fraph-backend/datasets/20260403172500-fraud-data-kaggle.csv`
+
+Split directories with 100,000 rows per file:
+
+- `fraph-backend/datasets/fraud_data_kaggle_splits`
+- `fraph-backend/datasets/20260330150703-fraud-data-kaggle_splits`
+- `fraph-backend/datasets/20260403172500-fraud-data-kaggle_splits`
+
+Recommended upload mappings:
+
+- sender: `nameOrig`
+- receiver: `nameDest`
+- amount: `amount`
+- label: `isFraud`
+- type: `type`
+- time: `step`
+
+### Card transaction fraud dataset
+
+Full CSV files:
+
+- `fraph-backend/datasets/fraud_train_squarebracket.csv`
+- `fraph-backend/datasets/fraud_test_squarebracket.csv`
+
+Split directories with 100,000 rows per file:
+
+- `fraph-backend/datasets/fraud_train_squarebracket_splits`
+- `fraph-backend/datasets/fraud_test_squarebracket_splits`
+
+Recommended upload mappings:
+
+- sender: `cc_num`
+- receiver: `merchant`
+- amount: `amt`
+- label: `is_fraud`
+- time: `trans_date_trans_time`
+
+This second dataset is usable in FRAPH, but it is less graph-native than PaySim because the receiver is a merchant field rather than a true peer-to-peer destination account.
 
 ## Chapter 8: Testing
 

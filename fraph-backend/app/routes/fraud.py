@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -5,6 +7,10 @@ from app.database.db import get_db
 from app.database.models import DatasetRecord
 from app.routes.upload import _dataset_to_response
 from app.schemas.schema import FraudAnalysisResponse, FraudCheckRequest
+from app.services.fraud_analysis_cache import (
+    get_cached_fraud_analysis,
+    set_cached_fraud_analysis,
+)
 from app.services.dataset_preparation import (
     load_prepared_analysis_artifact,
     read_preparation_status,
@@ -41,6 +47,9 @@ def detect_fraud(
     db: Session = Depends(get_db),
 ) -> FraudAnalysisResponse:
     record = _resolve_dataset(payload, db)
+    threshold = float(payload.threshold)
+    limit = int(payload.limit)
+    generated_at = datetime.now(UTC).isoformat()
     if is_large_dataset(record.stored_path):
         preparation_status = read_preparation_status(record.stored_path)
         artifact_payload = load_prepared_analysis_artifact(record.stored_path)
@@ -56,7 +65,18 @@ def detect_fraud(
             summary=artifact_payload["summary"],
             graph=artifact_payload["graph"],
             suspicious_transactions=artifact_payload["suspicious_transactions"],
+            analysis_generated_at=str(preparation_status.get("updated_at")),
+            served_from_cache=False,
         )
+
+    cached_response = get_cached_fraud_analysis(
+        record.stored_path,
+        threshold=threshold,
+        limit=limit,
+    )
+    if cached_response is not None:
+        cached_response["served_from_cache"] = True
+        return FraudAnalysisResponse(**cached_response)
 
     prepared, profile = preprocess_dataset(
         record.stored_path,
@@ -65,21 +85,29 @@ def detect_fraud(
     analysis = run_fraud_detection_from_prepared(
         prepared=prepared,
         profile=profile,
-        threshold=payload.threshold,
-        limit=payload.limit,
+        threshold=threshold,
+        limit=limit,
     )
     graph = build_graph_from_prepared(
         prepared,
-        limit=payload.limit,
+        limit=limit,
         suspicious_transaction_ids=[
             str(item["transaction_id"]) for item in analysis["suspicious_transactions"]
         ],
     )
-
-    return FraudAnalysisResponse(
+    response_payload = FraudAnalysisResponse(
         status="completed",
         dataset=_dataset_to_response(record),
         summary=analysis["summary"],
         graph=graph,
         suspicious_transactions=analysis["suspicious_transactions"],
+        analysis_generated_at=generated_at,
+        served_from_cache=False,
     )
+    set_cached_fraud_analysis(
+        record.stored_path,
+        threshold=threshold,
+        limit=limit,
+        result=response_payload.model_dump(mode="json"),
+    )
+    return response_payload

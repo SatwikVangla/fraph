@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import ParticleBackground from "../components/ParticleBackground";
@@ -16,6 +16,7 @@ export default function ComparePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { datasetId } = useParams();
+  const locationDataset = location.state?.dataset ?? null;
   const [comparison, setComparison] = useState(null);
   const [datasets, setDatasets] = useState([]);
   const [trainingResults, setTrainingResults] = useState([]);
@@ -25,19 +26,21 @@ export default function ComparePage() {
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
   const routeDatasetId = datasetId ? Number(datasetId) : null;
+  const locationDatasetId = locationDataset?.id ?? null;
+  const locationDatasetName = locationDataset?.name ?? null;
   const activeDatasetId = routeDatasetId ?? comparison?.dataset?.id ?? location.state?.dataset?.id ?? null;
   const activeDatasetName = comparison?.dataset?.name ?? location.state?.dataset?.name ?? null;
-  const compareModelNames = [
+  const compareModelNames = useMemo(() => [
     "knn",
     "logistic_regression",
     "linear_svc",
     "gaussian_nb",
     "gnn",
-  ];
+  ], []);
   const gnnComparisonResult = comparison?.model_results?.find((result) => result.model_name === "gnn") ?? null;
   const gnnTrainingResult = trainingResults.find((result) => result.model_name === "gnn") ?? null;
 
-  async function refreshComparison(active = true, preferredDataset = null) {
+  const refreshComparison = useCallback(async (active = true, preferredDataset = null) => {
     try {
       setLoading(true);
       setError("");
@@ -75,9 +78,9 @@ export default function ComparePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeDatasetId, activeDatasetName, compareModelNames]);
 
-  async function refreshArtifacts(active = true, preferredDatasetId = null) {
+  const refreshArtifacts = useCallback(async (active = true, preferredDatasetId = null) => {
     const artifactDatasetId = activeDatasetId ?? preferredDatasetId;
     if (!artifactDatasetId) {
       if (active) {
@@ -89,7 +92,7 @@ export default function ComparePage() {
     if (active) {
       setTrainingResults(artifacts);
     }
-  }
+  }, [activeDatasetId]);
 
   useEffect(() => {
     let active = true;
@@ -115,11 +118,11 @@ export default function ComparePage() {
 
         const fallbackDataset =
           response.find((item) => item.id === routeDatasetId) ??
-          location.state?.dataset ??
+          locationDataset ??
           response[0] ??
           null;
 
-        if (!routeDatasetId && !location.state?.dataset?.name && fallbackDataset) {
+        if (!routeDatasetId && !locationDatasetName && fallbackDataset) {
           navigate(`/compare/${fallbackDataset.id}`, {
             replace: true,
             state: { dataset: fallbackDataset },
@@ -145,7 +148,7 @@ export default function ComparePage() {
     return () => {
       active = false;
     };
-  }, [routeDatasetId, location.state?.dataset?.id, location.state?.dataset?.name, navigate]);
+  }, [routeDatasetId, locationDataset, locationDatasetId, locationDatasetName, navigate, refreshArtifacts, refreshComparison]);
 
   async function handleTraining() {
     const payload = activeDatasetId
@@ -219,7 +222,7 @@ export default function ComparePage() {
     }, 1500);
 
     return () => window.clearInterval(intervalId);
-  }, [job, activeDatasetId, activeDatasetName]);
+  }, [job, refreshArtifacts, refreshComparison]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black px-6 py-10 text-white md:px-12">

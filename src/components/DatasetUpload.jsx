@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { API_BASE_URL } from "../utils/api";
+
 export default function DatasetUpload() {
 const [file, setFile] = useState(null);
 
@@ -8,7 +10,7 @@ const formData = new FormData();
 formData.append("file", file);
 
 
-await fetch("http://localhost:8000/upload", {
+await fetch(`${API_BASE_URL}/upload`, {
   method: "POST",
   body: formData
 });
@@ -33,4 +35,3 @@ return ( <div className="text-center">
 </div>
 );
 }
-

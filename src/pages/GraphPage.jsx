@@ -4,28 +4,47 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import PlaceholderGraph from "../components/PlaceholderGraph";
 import { apiRequest } from "../utils/api";
 
+function formatAnalysisTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
+}
+
 export default function GraphPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { datasetId } = useParams();
-  const [analysis, setAnalysis] = useState(null);
+  const locationDataset = location.state?.dataset ?? null;
+  const locationAnalysis = location.state?.analysis ?? null;
+  const [analysis, setAnalysis] = useState(locationAnalysis);
   const [datasets, setDatasets] = useState([]);
-  const [dataset, setDataset] = useState(location.state?.dataset ?? null);
+  const [dataset, setDataset] = useState(locationDataset);
   const [preprocessingJob, setPreprocessingJob] = useState(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState(location.state?.transactionId ?? null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!locationAnalysis);
   const [error, setError] = useState("");
   const transactionRowRefs = useRef(new Map());
   const routeDatasetId = datasetId ? Number(datasetId) : null;
+  const locationTransactionId = location.state?.transactionId ?? null;
 
   useEffect(() => {
     let active = true;
 
     async function loadGraphAnalysis() {
       try {
-        setLoading(true);
+        const hasWarmAnalysisForRoute =
+          locationAnalysis &&
+          (!routeDatasetId || locationAnalysis.dataset?.id === routeDatasetId);
+        setLoading(!hasWarmAnalysisForRoute);
         setError("");
-        setAnalysis(null);
+        if (!hasWarmAnalysisForRoute) {
+          setAnalysis(null);
+        }
 
         const availableDatasets = await apiRequest("/upload/datasets");
         if (!active) {
@@ -36,7 +55,7 @@ export default function GraphPage() {
         const resolvedDataset =
           availableDatasets.find((item) => item.id === routeDatasetId) ??
           dataset ??
-          location.state?.dataset ??
+          locationDataset ??
           availableDatasets[0] ??
           null;
 
@@ -53,6 +72,23 @@ export default function GraphPage() {
         }
 
         setDataset(resolvedDataset);
+
+        if (
+          hasWarmAnalysisForRoute &&
+          locationAnalysis?.dataset?.id === resolvedDataset.id
+        ) {
+          if (active) {
+            setAnalysis(locationAnalysis);
+            setSelectedTransactionId(
+              locationTransactionId ??
+                locationAnalysis.suspicious_transactions?.[0]?.transaction_id ??
+                null,
+            );
+            setPreprocessingJob(null);
+            setLoading(false);
+          }
+          return;
+        }
 
         if (resolvedDataset.large_dataset) {
           const jobStatus = await apiRequest(
@@ -84,7 +120,7 @@ export default function GraphPage() {
         if (active) {
           setAnalysis(response);
           setSelectedTransactionId(
-            location.state?.transactionId ?? response.suspicious_transactions?.[0]?.transaction_id ?? null,
+            locationTransactionId ?? response.suspicious_transactions?.[0]?.transaction_id ?? null,
           );
         }
       } catch (requestError) {
@@ -106,7 +142,7 @@ export default function GraphPage() {
     return () => {
       active = false;
     };
-  }, [routeDatasetId, location.state?.dataset?.id, navigate]);
+  }, [dataset, locationAnalysis, locationDataset, locationTransactionId, navigate, routeDatasetId]);
 
   useEffect(() => {
     if (!dataset?.large_dataset || !preprocessingJob || preprocessingJob.status === "completed" || preprocessingJob.status === "failed") {
@@ -131,7 +167,7 @@ export default function GraphPage() {
           });
           setAnalysis(response);
           setSelectedTransactionId(
-            location.state?.transactionId ?? response.suspicious_transactions?.[0]?.transaction_id ?? null,
+            locationTransactionId ?? response.suspicious_transactions?.[0]?.transaction_id ?? null,
           );
         }
       } catch (requestError) {
@@ -144,7 +180,7 @@ export default function GraphPage() {
     }, 2000);
 
     return () => window.clearInterval(intervalId);
-  }, [dataset, preprocessingJob]);
+  }, [dataset, locationTransactionId, preprocessingJob]);
 
   useEffect(() => {
     if (!selectedTransactionId) {
@@ -251,6 +287,19 @@ export default function GraphPage() {
         {error ? (
           <div className="rounded-2xl border border-red-800 bg-red-950/20 p-6 text-red-300">
             {error}
+          </div>
+        ) : null}
+
+        {!loading && !error && analysis?.analysis_generated_at ? (
+          <div className="mb-8 rounded-2xl border border-neutral-800 bg-neutral-950/80 px-5 py-4 text-sm text-neutral-300">
+            <span className="font-semibold text-white">
+              {analysis.served_from_cache ? "Cached analysis" : "Fresh analysis"}
+            </span>
+            {" "}
+            generated at{" "}
+            <span className="text-red-300">
+              {formatAnalysisTimestamp(analysis.analysis_generated_at)}
+            </span>
           </div>
         ) : null}
 

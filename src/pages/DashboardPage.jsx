@@ -236,7 +236,7 @@ export default function DashboardPage() {
             {analysis?.dataset ? (
               <Link
                 to={`/graph/${analysis.dataset.id}`}
-                state={{ dataset: analysis.dataset }}
+                state={{ dataset: analysis.dataset, analysis }}
                 className="inline-flex w-fit items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600"
               >
                 Open Graph Explorer
@@ -341,7 +341,7 @@ export default function DashboardPage() {
                 {analysis.dataset ? (
                   <Link
                     to={`/graph/${analysis.dataset.id}`}
-                    state={{ dataset: analysis.dataset }}
+                    state={{ dataset: analysis.dataset, analysis }}
                     className="mt-6 inline-flex items-center border border-red-600 px-5 py-3 text-sm font-bold uppercase tracking-[0.25em] text-white transition hover:bg-red-600"
                   >
                     Launch Graph Explorer
@@ -396,6 +396,7 @@ export default function DashboardPage() {
                             navigate(`/graph/${analysis.dataset.id}`, {
                               state: {
                                 dataset: analysis.dataset,
+                                analysis,
                                 transactionId: transaction.transaction_id,
                               },
                             });

@@ -5,48 +5,34 @@ import ParticleBackground from "./ParticleBackground";
 
 const HomeTitleScene = lazy(() => import("./HomeTitleScene"));
 
-const platformStats = [
-  { value: "8.4M", label: "transactions profiled" },
-  { value: "24/7", label: "risk surveillance" },
-  { value: "97.2%", label: "pattern recall target" },
-];
-
-const platformPillars = [
+const capabilityCards = [
   {
-    eyebrow: "Graph Intelligence",
-    title: "Connect suspicious accounts before the damage compounds.",
-    body: "Turn raw payment logs into a living fraud map that reveals laundering chains, mule clusters, and repeated transfer signatures.",
+    label: "Upload",
+    text: "Bring in transaction CSV files and map the core fields before analysis starts.",
   },
   {
-    eyebrow: "Model Operations",
-    title: "Compare simpler non-graph baselines against a relationship-aware GNN.",
-    body: "Move from upload to graph construction to evaluation while showing how linked users and transactions change what the model can learn.",
+    label: "Analyze",
+    text: "Review suspicious transactions, graph summaries, and dataset diagnostics.",
   },
   {
-    eyebrow: "Analyst Workflow",
-    title: "Keep the interface focused on high-risk movement.",
-    body: "Surface hot paths, weak balances, and linked entities through a single command center rather than fragmented charts.",
+    label: "Compare",
+    text: "Evaluate the GNN against the supported non-graph baselines.",
   },
 ];
 
-const activityFeed = [
-  "Velocity spike detected across linked wallets",
-  "Transfer ladder reconstructed in 3 hops",
-  "High-risk subnet isolated for review",
-];
-
-const controlPanels = [
-  { name: "Upload", detail: "Normalize datasets and ingest fraud labels." },
-  { name: "Dashboard", detail: "Inspect risk movement and graph structure." },
-  { name: "Compare", detail: "Measure GNN gains over simpler non-graph baselines." },
+const workflow = [
+  "Upload and validate the dataset",
+  "Run dashboard fraud analysis",
+  "Inspect the transaction graph",
+  "Review model comparison metrics",
 ];
 
 function SceneFallback() {
   return (
-    <div className="hero-scene-fallback" aria-hidden="true">
-      <div className="hero-scene-fallback-grid" />
-      <div className="hero-scene-fallback-glow" />
-      <div className="hero-scene-fallback-title">FRAPH</div>
+    <div className="homev2-scene-fallback" aria-hidden="true">
+      <div className="homev2-scene-fallback-grid" />
+      <div className="homev2-scene-fallback-glow" />
+      <div className="homev2-scene-fallback-title">FRAPH</div>
     </div>
   );
 }
@@ -61,27 +47,35 @@ export default function Hero() {
   }, []);
 
   return (
-    <main className="homepage-shell">
-      <div className="homepage-backdrop" />
-      <div className="homepage-glow homepage-glow-left" />
-      <div className="homepage-glow homepage-glow-right" />
-      <div className="homepage-grid" />
+    <main className="homev2-shell">
+      <div className="homev2-scene" aria-hidden="true">
+        {showScene ? (
+          <Suspense fallback={<SceneFallback />}>
+            <HomeTitleScene />
+          </Suspense>
+        ) : (
+          <SceneFallback />
+        )}
+        <div className="homev2-scene-shade" />
+      </div>
 
-      <div className="homepage-particles">
+      <div className="homev2-particles" aria-hidden="true">
         <ParticleBackground />
       </div>
 
-      <section className="hero-frame">
-        <header className="hero-topbar">
-          <div className="hero-brand">
-            <span className="hero-brand-mark" />
+      <div className="homev2-overlay" />
+
+      <section className="homev2-frame">
+        <header className="homev2-topbar">
+          <div className="homev2-brand">
+            <span className="homev2-brand-mark" />
             <div>
-              <p className="hero-brand-name">FRAPH</p>
-              <p className="hero-brand-tag">Fraud graph intelligence platform</p>
+              <p className="homev2-brand-name">FRAPH</p>
+              <p className="homev2-brand-tag">Fraud relationship analysis workspace</p>
             </div>
           </div>
 
-          <nav className="hero-nav" aria-label="Homepage navigation">
+          <nav className="homev2-nav" aria-label="Homepage navigation">
             <button type="button" onClick={() => navigate("/upload")}>
               Upload
             </button>
@@ -91,95 +85,61 @@ export default function Hero() {
           </nav>
         </header>
 
-        <div className="hero-main">
-          <div className="hero-copy">
-            <p className="hero-kicker">Redline fraud detection system</p>
-            <h1>
-              See the network.
-              <span> Catch the fraud chain before it spreads.</span>
-            </h1>
-            <p className="hero-summary">
-              A rebuilt landing page for FRAPH, designed around transaction graphs,
-              user-transaction relationships, and model evaluation. The interface
-              stays visible on first paint, then layers motion and particles on top.
+        <section className="homev2-hero">
+          <div className="homev2-copy">
+            <p className="homev2-kicker">Graph-based fraud analysis</p>
+            <h1>Understand transaction relationships before you trust the prediction.</h1>
+            <p className="homev2-summary">
+              FRAPH is a fraud-analysis workspace for transaction datasets. Upload the CSV,
+              inspect suspicious flows, open the graph explorer, and compare the GNN against
+              supported non-graph baselines.
             </p>
 
-            <div className="hero-actions">
+            <div className="homev2-actions">
               <button
                 type="button"
-                className="hero-button hero-button-primary"
+                className="homev2-button homev2-button-primary"
                 onClick={() => navigate("/upload")}
               >
-                Start Analysis
+                Start With Upload
               </button>
               <button
                 type="button"
-                className="hero-button hero-button-secondary"
+                className="homev2-button homev2-button-secondary"
                 onClick={() => navigate("/dashboard")}
               >
                 Open Dashboard
               </button>
             </div>
-
-            <div className="hero-stats">
-              {platformStats.map((item) => (
-                <article key={item.label} className="hero-stat-card">
-                  <strong>{item.value}</strong>
-                  <span>{item.label}</span>
-                </article>
-              ))}
-            </div>
           </div>
 
-          <div className="hero-stage">
-            <div className="hero-stage-shell">
-              <div className="hero-stage-screen">
-                <div className="hero-stage-right-mask" aria-hidden="true" />
-                {showScene ? (
-                  <Suspense fallback={<SceneFallback />}>
-                    <HomeTitleScene />
-                  </Suspense>
-                ) : (
-                  <SceneFallback />
-                )}
-                <div className="hero-stage-vignette" />
-
-                <div className="stage-panel stage-panel-top">
-                  <span>Graph forge sequence</span>
-                  <span>FRAPH title assembled from network flow</span>
-                </div>
-
-                <div className="stage-panel stage-panel-right">
-                  <p>Alert feed</p>
-                  <ul>
-                    {activityFeed.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="stage-panel stage-panel-bottom">
-                  {controlPanels.map((panel) => (
-                    <article key={panel.name}>
-                      <span>{panel.name}</span>
-                      <p>{panel.detail}</p>
-                    </article>
-                  ))}
-                </div>
-              </div>
+          <aside className="homev2-sidepanel">
+            <div className="homev2-panel-block">
+              <p className="homev2-panel-label">Core Flow</p>
+              <ol className="homev2-workflow-list">
+                {workflow.map((item, index) => (
+                  <li key={item}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <p>{item}</p>
+                  </li>
+                ))}
+              </ol>
             </div>
-          </div>
-        </div>
+          </aside>
+        </section>
 
-        <div className="hero-pillars">
-          {platformPillars.map((pillar) => (
-            <article key={pillar.eyebrow} className="pillar-card">
-              <p>{pillar.eyebrow}</p>
-              <h2>{pillar.title}</h2>
-              <span>{pillar.body}</span>
+        <section className="homev2-card-grid">
+          {capabilityCards.map((card) => (
+            <article key={card.label} className="homev2-card">
+              <p className="homev2-card-label">{card.label}</p>
+              <span>{card.text}</span>
             </article>
           ))}
-        </div>
+        </section>
+
+        <footer className="homev2-footer">
+          <p>Copyright © Satwik Vangala</p>
+        </footer>
       </section>
     </main>
   );

@@ -1203,6 +1203,10 @@ def tune_and_train_gnn_from_prepared(
     max_nodes: int | None = None,
     seed_candidates: list[int] | None = None,
     forced_model_architecture: str | None = None,
+    forced_use_similarity_edges: bool | None = None,
+    forced_use_party_edges: bool | None = None,
+    forced_use_temporal_edges: bool | None = None,
+    forced_include_account_nodes: bool | None = None,
 ) -> dict[str, object]:
     best_trial_result: dict[str, object] | None = None
     best_trial_config: dict[str, object] | None = None
@@ -1216,6 +1220,19 @@ def tune_and_train_gnn_from_prepared(
             if str(config.get("model_architecture")) == forced_model_architecture
         ]
         trial_configs = filtered or trial_configs
+    normalized_trial_configs: list[dict[str, object]] = []
+    for trial_config in trial_configs:
+        normalized_config = dict(trial_config)
+        if forced_use_similarity_edges is not None:
+            normalized_config["use_similarity_edges"] = bool(forced_use_similarity_edges)
+        if forced_use_party_edges is not None:
+            normalized_config["use_party_edges"] = bool(forced_use_party_edges)
+        if forced_use_temporal_edges is not None:
+            normalized_config["use_temporal_edges"] = bool(forced_use_temporal_edges)
+        if forced_include_account_nodes is not None:
+            normalized_config["include_account_nodes"] = bool(forced_include_account_nodes)
+        normalized_trial_configs.append(normalized_config)
+    trial_configs = normalized_trial_configs
 
     for trial_index, trial_config in enumerate(trial_configs, start=1):
         graph_key = (

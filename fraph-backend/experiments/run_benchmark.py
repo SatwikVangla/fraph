@@ -70,6 +70,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gnn-disable-similarity-edges", action="store_false", dest="gnn_use_similarity_edges")
     parser.add_argument("--gnn-use-party-edges", action="store_true", default=True)
     parser.add_argument("--gnn-disable-party-edges", action="store_false", dest="gnn_use_party_edges")
+    parser.add_argument("--gnn-use-temporal-edges", action="store_true", default=True)
+    parser.add_argument("--gnn-disable-temporal-edges", action="store_false", dest="gnn_use_temporal_edges")
+    parser.add_argument("--gnn-include-account-nodes", action="store_true", default=True)
+    parser.add_argument("--gnn-disable-account-nodes", action="store_false", dest="gnn_include_account_nodes")
     parser.add_argument("--gnn-use-class-weights", action="store_true", default=True)
     parser.add_argument("--gnn-disable-class-weights", action="store_false", dest="gnn_use_class_weights")
     parser.add_argument("--output-dir", default="outputs", help="Output directory.")
@@ -114,6 +118,8 @@ def evaluate_gnn_model(
     fold_name: str,
     use_similarity_edges: bool,
     use_party_edges: bool,
+    use_temporal_edges: bool,
+    include_account_nodes: bool,
     use_class_weights: bool,
     model_architecture: str | None = None,
 ) -> tuple[dict[str, object], list[float], list[int], list[int]]:
@@ -132,6 +138,10 @@ def evaluate_gnn_model(
         dropout=dropout,
         seed_candidates=[42, 52, 62],
         forced_model_architecture=model_architecture,
+        forced_use_similarity_edges=use_similarity_edges,
+        forced_use_party_edges=use_party_edges,
+        forced_use_temporal_edges=use_temporal_edges,
+        forced_include_account_nodes=include_account_nodes,
     )
     raw_outputs = result.pop("raw_outputs")
     return result, raw_outputs["probabilities"], raw_outputs["predictions"], raw_outputs["y_true"]
@@ -187,35 +197,52 @@ def plot_confusion_matrix(matrix, title: str, output_path: Path) -> None:
 
 
 def summarize_fold_metrics(fold_metrics: pd.DataFrame) -> pd.DataFrame:
-    summary = (
-        fold_metrics.groupby("model_name")
-        .agg({
-            "accuracy": ["mean", "std"],
-            "precision": ["mean", "std"],
-            "recall": ["mean", "std"],
-            "f1_score": ["mean", "std"],
-            "roc_auc": ["mean", "std"],
-            "pr_auc": ["mean", "std"],
-            "mcc": ["mean", "std"],
-        })
-        .reset_index()
+    excluded_columns = {
+        "fold",
+        "model_name",
+        "reported_model_name",
+        "train_step_max",
+        "test_step_min",
+        "test_step_max",
+        "model_architecture",
+    }
+    preferred_order = [
+        "accuracy",
+        "precision",
+        "recall",
+        "f1_score",
+        "roc_auc",
+        "pr_auc",
+        "mcc",
+        "threshold",
+        "validation_score",
+        "tuning_validation_score",
+        "best_epoch",
+        "calibration_temperature",
+        "calibration_bias",
+        "selected_seed",
+    ]
+    aggregations: dict[str, list[str]] = {}
+    for column in fold_metrics.columns:
+        if column in excluded_columns:
+            continue
+        if fold_metrics[column].notna().any():
+            aggregations[column] = ["mean", "std"]
+    ordered_columns = [column for column in preferred_order if column in aggregations]
+    ordered_columns.extend(
+        column for column in aggregations
+        if column not in ordered_columns
     )
+    summary = fold_metrics.groupby("model_name").agg({
+        column: aggregations[column] for column in ordered_columns
+    }).reset_index()
     summary.columns = [
         "model_name",
-        "accuracy_mean",
-        "accuracy_std",
-        "precision_mean",
-        "precision_std",
-        "recall_mean",
-        "recall_std",
-        "f1_mean",
-        "f1_std",
-        "roc_auc_mean",
-        "roc_auc_std",
-        "pr_auc_mean",
-        "pr_auc_std",
-        "mcc_mean",
-        "mcc_std",
+        *[
+            f"{column}_{statistic}"
+            for column in ordered_columns
+            for statistic in ("mean", "std")
+        ],
     ]
     return summary
 
@@ -232,6 +259,8 @@ def run_benchmark(
     gnn_dropout: float = 0.1,
     gnn_use_similarity_edges: bool = True,
     gnn_use_party_edges: bool = True,
+    gnn_use_temporal_edges: bool = True,
+    gnn_include_account_nodes: bool = True,
     gnn_use_class_weights: bool = True,
     output_dir: str = "outputs",
     output_suffix: str | None = None,
@@ -280,6 +309,8 @@ def run_benchmark(
                     fold_name=fold_name,
                     use_similarity_edges=gnn_use_similarity_edges,
                     use_party_edges=gnn_use_party_edges,
+                    use_temporal_edges=gnn_use_temporal_edges,
+                    include_account_nodes=gnn_include_account_nodes,
                     use_class_weights=gnn_use_class_weights,
                     model_architecture=architecture,
                 )
@@ -295,7 +326,8 @@ def run_benchmark(
             fold_rows.append(
                 {
                     "fold": fold_index,
-                    "model_name": result.get("model_name", model_name),
+                    "model_name": model_name,
+                    "reported_model_name": result.get("model_name", model_name),
                     "accuracy": result["accuracy"],
                     "precision": result["precision"],
                     "recall": result["recall"],
@@ -307,6 +339,14 @@ def run_benchmark(
                     "fp": result.get("fp"),
                     "fn": result.get("fn"),
                     "tp": result.get("tp"),
+                    "threshold": result.get("threshold"),
+                    "validation_score": result.get("validation_score"),
+                    "tuning_validation_score": result.get("tuning_validation_score"),
+                    "best_epoch": result.get("best_epoch"),
+                    "calibration_temperature": result.get("calibration_temperature"),
+                    "calibration_bias": result.get("calibration_bias"),
+                    "selected_seed": (result.get("selected_config") or {}).get("selected_seed"),
+                    "model_architecture": (result.get("selected_config") or {}).get("model_architecture"),
                     "train_step_max": split.metadata.get("train_step_max"),
                     "test_step_min": split.metadata.get("test_step_min"),
                     "test_step_max": split.metadata.get("test_step_max"),
@@ -370,6 +410,8 @@ def run_benchmark(
         "gnn_dropout": gnn_dropout,
         "gnn_use_similarity_edges": gnn_use_similarity_edges,
         "gnn_use_party_edges": gnn_use_party_edges,
+        "gnn_use_temporal_edges": gnn_use_temporal_edges,
+        "gnn_include_account_nodes": gnn_include_account_nodes,
         "gnn_use_class_weights": gnn_use_class_weights,
         "diagnostics": diagnostics,
     }
@@ -395,6 +437,8 @@ def main() -> None:
         gnn_dropout=args.gnn_dropout,
         gnn_use_similarity_edges=args.gnn_use_similarity_edges,
         gnn_use_party_edges=args.gnn_use_party_edges,
+        gnn_use_temporal_edges=args.gnn_use_temporal_edges,
+        gnn_include_account_nodes=args.gnn_include_account_nodes,
         gnn_use_class_weights=args.gnn_use_class_weights,
         output_dir=args.output_dir,
     )
