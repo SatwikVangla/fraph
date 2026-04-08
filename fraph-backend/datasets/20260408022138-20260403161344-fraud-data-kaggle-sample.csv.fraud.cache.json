@@ -1,0 +1,743 @@
+{
+  "cache_version": 2,
+  "dataset_mtime_ns": 1775614898475390502,
+  "dataset_size": 3055573,
+  "entries": {
+    "threshold=0.6500|limit=8": {
+      "status": "completed",
+      "dataset": {
+        "id": 24,
+        "name": "20260403161344-fraud-data-kaggle-sample",
+        "original_filename": "20260403161344-fraud-data-kaggle-sample.csv",
+        "stored_path": "/home/satwik/fraph/fraph-backend/datasets/20260408022138-20260403161344-fraud-data-kaggle-sample.csv",
+        "row_count": 40147,
+        "file_size_bytes": 3055573,
+        "large_dataset": false,
+        "preprocessing_status": "missing",
+        "preprocessing_job_id": null,
+        "amount_column": "amount",
+        "sender_column": "nameOrig",
+        "receiver_column": "nameDest",
+        "label_column": "isFraud",
+        "created_at": "2026-04-08T02:21:39.454621"
+      },
+      "summary": {
+        "transactions_analyzed": 40147,
+        "suspicious_transactions": 4,
+        "fraud_rate": 0.0001,
+        "average_risk_score": 0.1727,
+        "total_amount": 7410464085.71
+      },
+      "graph": {
+        "node_count": 67236,
+        "edge_count": 40147,
+        "connected_components": 27089,
+        "density": 0.0,
+        "top_nodes": [
+          {
+            "id": "transaction:txn-17327",
+            "label": "txn-17327",
+            "degree": 2,
+            "total_amount": 10000000.0,
+            "node_type": "transaction",
+            "risk_score": 1.0,
+            "suspicious": true,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-31193",
+            "label": "txn-31193",
+            "degree": 2,
+            "total_amount": 5460002.91,
+            "node_type": "transaction",
+            "risk_score": 1.0,
+            "suspicious": true,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-24614",
+            "label": "txn-24614",
+            "degree": 2,
+            "total_amount": 3903432.11,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-3071",
+            "label": "txn-3071",
+            "degree": 2,
+            "total_amount": 3666040.44,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-5381",
+            "label": "txn-5381",
+            "degree": 2,
+            "total_amount": 2703653.43,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-10500",
+            "label": "txn-10500",
+            "degree": 2,
+            "total_amount": 2701250.65,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-476",
+            "label": "txn-476",
+            "degree": 2,
+            "total_amount": 2421578.09,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-16661",
+            "label": "txn-16661",
+            "degree": 2,
+            "total_amount": 2317408.88,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-23649",
+            "label": "txn-23649",
+            "degree": 2,
+            "total_amount": 1970637.78,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-10909",
+            "label": "txn-10909",
+            "degree": 2,
+            "total_amount": 1903560.15,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-22645",
+            "label": "txn-22645",
+            "degree": 2,
+            "total_amount": 1781452.87,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-27941",
+            "label": "txn-27941",
+            "degree": 2,
+            "total_amount": 1741813.1,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-23947",
+            "label": "txn-23947",
+            "degree": 2,
+            "total_amount": 1698747.82,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-13410",
+            "label": "txn-13410",
+            "degree": 2,
+            "total_amount": 1538200.39,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-26883",
+            "label": "txn-26883",
+            "degree": 2,
+            "total_amount": 1429051.47,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "transaction:txn-20297",
+            "label": "txn-20297",
+            "degree": 2,
+            "total_amount": 691738.36,
+            "node_type": "transaction",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C351297720",
+            "label": "C351297720",
+            "degree": 2,
+            "total_amount": 10000000.0,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C1588880909",
+            "label": "C1588880909",
+            "degree": 2,
+            "total_amount": 5460002.91,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C1292277702",
+            "label": "C1292277702",
+            "degree": 2,
+            "total_amount": 3903432.11,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C1286776309",
+            "label": "C1286776309",
+            "degree": 2,
+            "total_amount": 3666040.44,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C549276978",
+            "label": "C549276978",
+            "degree": 2,
+            "total_amount": 2703653.43,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C2083562754",
+            "label": "C2083562754",
+            "degree": 4,
+            "total_amount": 2701250.65,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C2129589764",
+            "label": "C2129589764",
+            "degree": 2,
+            "total_amount": 2701250.65,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          },
+          {
+            "id": "account:C106297322",
+            "label": "C106297322",
+            "degree": 2,
+            "total_amount": 2421578.09,
+            "node_type": "account",
+            "risk_score": null,
+            "suspicious": false,
+            "activity_count": 1
+          }
+        ],
+        "top_edges": [
+          {
+            "source": "account:C351297720",
+            "target": "transaction:txn-17327",
+            "count": 1,
+            "total_amount": 10000000.0,
+            "edge_type": "initiates",
+            "risk_score": 1.0
+          },
+          {
+            "source": "account:C351297720",
+            "target": "account:C766681183",
+            "count": 1,
+            "total_amount": 10000000.0,
+            "edge_type": "transfers_to",
+            "risk_score": 1.0
+          },
+          {
+            "source": "transaction:txn-17327",
+            "target": "account:C766681183",
+            "count": 1,
+            "total_amount": 10000000.0,
+            "edge_type": "settles_to",
+            "risk_score": 1.0
+          },
+          {
+            "source": "account:C1588880909",
+            "target": "transaction:txn-31193",
+            "count": 1,
+            "total_amount": 5460002.91,
+            "edge_type": "initiates",
+            "risk_score": 1.0
+          },
+          {
+            "source": "account:C1588880909",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 5460002.91,
+            "edge_type": "transfers_to",
+            "risk_score": 1.0
+          },
+          {
+            "source": "transaction:txn-31193",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 5460002.91,
+            "edge_type": "settles_to",
+            "risk_score": 1.0
+          },
+          {
+            "source": "account:C1292277702",
+            "target": "transaction:txn-24614",
+            "count": 1,
+            "total_amount": 3903432.11,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1292277702",
+            "target": "account:C2083562754",
+            "count": 1,
+            "total_amount": 3903432.11,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-24614",
+            "target": "account:C2083562754",
+            "count": 1,
+            "total_amount": 3903432.11,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C106297322",
+            "target": "transaction:txn-476",
+            "count": 1,
+            "total_amount": 2421578.09,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C106297322",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 2421578.09,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-476",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 2421578.09,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C571512241",
+            "target": "transaction:txn-23649",
+            "count": 1,
+            "total_amount": 1970637.78,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C571512241",
+            "target": "account:C1360767589",
+            "count": 1,
+            "total_amount": 1970637.78,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-23649",
+            "target": "account:C1360767589",
+            "count": 1,
+            "total_amount": 1970637.78,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C476579021",
+            "target": "transaction:txn-13410",
+            "count": 1,
+            "total_amount": 1538200.39,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C476579021",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 1538200.39,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-13410",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 1538200.39,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1520267010",
+            "target": "transaction:txn-26883",
+            "count": 1,
+            "total_amount": 1429051.47,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1520267010",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 1429051.47,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-26883",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 1429051.47,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1514214932",
+            "target": "transaction:txn-20297",
+            "count": 1,
+            "total_amount": 691738.36,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1514214932",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 691738.36,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-20297",
+            "target": "account:C1590550415",
+            "count": 1,
+            "total_amount": 691738.36,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1286776309",
+            "target": "transaction:txn-3071",
+            "count": 1,
+            "total_amount": 3666040.44,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1286776309",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 3666040.44,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-3071",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 3666040.44,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C549276978",
+            "target": "transaction:txn-5381",
+            "count": 1,
+            "total_amount": 2703653.43,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C549276978",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 2703653.43,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-5381",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 2703653.43,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C2129589764",
+            "target": "transaction:txn-10500",
+            "count": 1,
+            "total_amount": 2701250.65,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C2129589764",
+            "target": "account:C2083562754",
+            "count": 1,
+            "total_amount": 2701250.65,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-10500",
+            "target": "account:C2083562754",
+            "count": 1,
+            "total_amount": 2701250.65,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1219553025",
+            "target": "transaction:txn-16661",
+            "count": 1,
+            "total_amount": 2317408.88,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1219553025",
+            "target": "account:C1883840933",
+            "count": 1,
+            "total_amount": 2317408.88,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-16661",
+            "target": "account:C1883840933",
+            "count": 1,
+            "total_amount": 2317408.88,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1833341934",
+            "target": "transaction:txn-10909",
+            "count": 1,
+            "total_amount": 1903560.15,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C1833341934",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 1903560.15,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-10909",
+            "target": "account:C1570256460",
+            "count": 1,
+            "total_amount": 1903560.15,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C815593047",
+            "target": "transaction:txn-22645",
+            "count": 1,
+            "total_amount": 1781452.87,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C815593047",
+            "target": "account:C766681183",
+            "count": 1,
+            "total_amount": 1781452.87,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-22645",
+            "target": "account:C766681183",
+            "count": 1,
+            "total_amount": 1781452.87,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C888690253",
+            "target": "transaction:txn-27941",
+            "count": 1,
+            "total_amount": 1741813.1,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C888690253",
+            "target": "account:C453211571",
+            "count": 1,
+            "total_amount": 1741813.1,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-27941",
+            "target": "account:C453211571",
+            "count": 1,
+            "total_amount": 1741813.1,
+            "edge_type": "settles_to",
+            "risk_score": null
+          },
+          {
+            "source": "account:C199097599",
+            "target": "transaction:txn-23947",
+            "count": 1,
+            "total_amount": 1698747.82,
+            "edge_type": "initiates",
+            "risk_score": null
+          },
+          {
+            "source": "account:C199097599",
+            "target": "account:C1883840933",
+            "count": 1,
+            "total_amount": 1698747.82,
+            "edge_type": "transfers_to",
+            "risk_score": null
+          },
+          {
+            "source": "transaction:txn-23947",
+            "target": "account:C1883840933",
+            "count": 1,
+            "total_amount": 1698747.82,
+            "edge_type": "settles_to",
+            "risk_score": null
+          }
+        ]
+      },
+      "suspicious_transactions": [
+        {
+          "transaction_id": "txn-17327",
+          "sender": "C351297720",
+          "receiver": "C766681183",
+          "amount": 10000000.0,
+          "risk_score": 0.6923,
+          "predicted_fraud": true,
+          "actual_label": true
+        },
+        {
+          "transaction_id": "txn-26883",
+          "sender": "C1520267010",
+          "receiver": "C1590550415",
+          "amount": 1429051.47,
+          "risk_score": 0.6671,
+          "predicted_fraud": true,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-476",
+          "sender": "C106297322",
+          "receiver": "C1590550415",
+          "amount": 2421578.09,
+          "risk_score": 0.6589,
+          "predicted_fraud": true,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-31193",
+          "sender": "C1588880909",
+          "receiver": "C1570256460",
+          "amount": 5460002.91,
+          "risk_score": 0.6573,
+          "predicted_fraud": true,
+          "actual_label": true
+        },
+        {
+          "transaction_id": "txn-13410",
+          "sender": "C476579021",
+          "receiver": "C1590550415",
+          "amount": 1538200.39,
+          "risk_score": 0.6477,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-24614",
+          "sender": "C1292277702",
+          "receiver": "C2083562754",
+          "amount": 3903432.11,
+          "risk_score": 0.6404,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-20297",
+          "sender": "C1514214932",
+          "receiver": "C1590550415",
+          "amount": 691738.36,
+          "risk_score": 0.6354,
+          "predicted_fraud": false,
+          "actual_label": false
+        },
+        {
+          "transaction_id": "txn-23649",
+          "sender": "C571512241",
+          "receiver": "C1360767589",
+          "amount": 1970637.78,
+          "risk_score": 0.6223,
+          "predicted_fraud": false,
+          "actual_label": false
+        }
+      ],
+      "analysis_generated_at": "2026-04-08T02:21:40.912579+00:00",
+      "served_from_cache": false
+    }
+  }
+}
