@@ -95,7 +95,18 @@ Use:
 Option 1, clone with Git:
 
 ```powershell
-git clone <repo-url>
+git clone git@github.com:SatwikVangla/fraph.git
+```
+
+HTTPS alternative:
+
+```powershell
+git clone https://github.com/SatwikVangla/fraph.git
+```
+
+Then:
+
+```powershell
 cd fraph
 ```
 
@@ -212,6 +223,45 @@ Once both servers are running:
 - Backend API: `http://127.0.0.1:8000`
 
 On Windows, keep the backend terminal inside `fraph-backend` and the frontend terminal at the repo root.
+
+## Output Pages
+
+The frontend exposes these output pages once the app is running:
+
+- `/` - Landing page with the main FRAPH entry flow
+- `/upload` - Dataset upload page with CSV preview, mapping inference, and validation summary
+- `/dashboard` - Fraud intelligence dashboard with suspicious transactions, dataset state, and analysis output
+- `/graph/:datasetId` - Dedicated graph analysis page for relationship exploration on a selected dataset
+- `/compare/:datasetId` - Model comparison page for baseline metrics, GNN results, and training output
+
+Typical flow:
+
+1. Open `/upload` and submit a dataset.
+2. Review analysis on `/dashboard`.
+3. Open `/graph/:datasetId` for graph-specific inspection.
+4. Open `/compare/:datasetId` to compare classical models against the GNN.
+
+## Output Images
+
+### Landing Page
+
+![FRAPH landing page](docs/images/readme/home-cropped.png)
+
+### Upload Page
+
+![FRAPH upload page](docs/images/readme/upload.png)
+
+### Dashboard Page
+
+![FRAPH dashboard page](docs/images/readme/dashboard.png)
+
+### Graph Page
+
+![FRAPH graph page](docs/images/readme/graph.png)
+
+### Compare Page
+
+![FRAPH compare page](docs/images/readme/compare.png)
 
 ## API Surfaces
 
