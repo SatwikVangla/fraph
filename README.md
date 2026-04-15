@@ -257,7 +257,7 @@ Typical flow:
 
 ### Landing Page
 
-![FRAPH landing page](docs/images/readme/home-cropped.png)
+![FRAPH landing page](docs/images/readme/home.png)
 
 ### Upload Page
 
