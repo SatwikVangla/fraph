@@ -151,6 +151,12 @@ cd fraph-backend
 py -3 -m venv .venv
 ```
 
+The backend virtual environment for this project lives at:
+
+```text
+fraph-backend/.venv
+```
+
 Activate it:
 
 ```powershell
@@ -207,6 +213,12 @@ source .venv/bin/activate
 pip install -r requirements-base.txt
 pip install --index-url https://download.pytorch.org/whl/cpu -r requirements-cpu.txt
 python run_backend.py
+```
+
+If the virtual environment already exists, you can activate it directly from the repository root:
+
+```bash
+source fraph-backend/.venv/bin/activate
 ```
 
 Frontend run command:
